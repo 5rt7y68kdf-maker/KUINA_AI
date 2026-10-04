@@ -10,18 +10,22 @@ st.set_page_config(page_title="KEIBA DATA ANALYTICS", layout="wide")
 # 外部デザインファイル (style.css) を安全に読み込む
 if os.path.exists("style.css"):
     with open("style.css", "r", encoding="utf-8") as f:
-        # unsafe_allow_html=True に修正（これでエラーが消えます）
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 st.title("📊 KEIBA DATA ANALYTICS")
 st.caption("🤖 過去5年間のコース・展開統計に基づく、完全自動期待値算出システム")
 
-def load_csv_safely(uploaded_file):
-    if uploaded_file is None:
+# 💡 【改善点】ファイルを固定の名前で自動読み込みするように設定
+WAKU_FILE = "過去5年_枠順集計.csv"
+KYAKU_FILE = "過去5年_脚質集計.csv"
+THIS_WEEK_FILE = "今週の出馬表.csv"
+
+def load_csv_safely(file_path):
+    if not os.path.exists(file_path):
         return None
     try:
         df = pd.read_csv(
-            uploaded_file, 
+            file_path, 
             encoding='shift_jis', 
             dtype=str, 
             na_values=['*', '-', ' '],
@@ -32,23 +36,23 @@ def load_csv_safely(uploaded_file):
             df[col] = df[col].str.strip()
         return df
     except Exception as e:
-        st.error(f"ファイル読み込みエラー: {e}")
+        st.error(f"ファイル【{file_path}】の読み込みエラー: {e}")
         return None
 
-# アップローダーエリア
-with st.expander("📥 TARGETデータ一括インポートパネル (ここをクリックで開閉)", expanded=True):
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        uploaded_waku = st.file_uploader("① 過去5年_枠順集計", type=["csv"])
-    with col2:
-        uploaded_kyakushitsu = st.file_uploader("② 過去5年_脚質集計", type=["csv"])
-    with col3:
-        uploaded_this_week = st.file_uploader("③ 今週の出馬表", type=["csv"])
+# ファイルが揃っているかチェック
+files_exist = os.path.exists(WAKU_FILE) and os.path.exists(KYAKU_FILE) and os.path.exists(THIS_WEEK_FILE)
 
-if uploaded_waku and uploaded_kyakushitsu and uploaded_this_week:
-    df_waku = load_csv_safely(uploaded_waku)
-    df_kyaku = load_csv_safely(uploaded_kyakushitsu)
-    df_this = load_csv_safely(uploaded_this_week)
+if not files_exist:
+    st.warning("⚠️ GitHub（リポジトリ）の中にデータファイルが見つかりません。")
+    st.info(f"GitHubの同じフォルダ内に、以下の【3つの日本語ファイル名】でCSVを配置してプッシュしてください。\n\n"
+            f"1. `{WAKU_FILE}`\n"
+            f"2. `{KYAKU_FILE}`\n"
+            f"3. `{THIS_WEEK_FILE}`")
+else:
+    # 画面を開いた瞬間に自動でファイルを読み込む
+    df_waku = load_csv_safely(WAKU_FILE)
+    df_kyaku = load_csv_safely(KYAKU_FILE)
+    df_this = load_csv_safely(THIS_WEEK_FILE)
 
     if df_waku is not None and df_kyaku is not None and df_this is not None:
         try:
