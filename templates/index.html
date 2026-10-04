@@ -96,6 +96,30 @@
             </div>
         </section>
 
+        <!-- AIおすすめ馬券（5パターン） -->
+        <section class="card betting-card">
+            <h2>🎯 AIおすすめ馬券（5パターン）</h2>
+            <div class="betting-grid">
+                {% for pat in data.betting_patterns %}
+                <div class="betting-item">
+                    <div class="betting-header">
+                        <span class="betting-badge {{ pat.badge_class }}">{{ pat.badge }}</span>
+                        <span class="betting-type">{{ pat.type }}</span>
+                    </div>
+                    <h3 class="betting-title">{{ pat.name }}</h3>
+                    <div class="betting-recommendation">
+                        <span class="rec-label">推奨買い目:</span>
+                        <code class="rec-code">{{ pat.recommendation }}</code>
+                    </div>
+                    <p class="betting-desc">{{ pat.description }}</p>
+                    <div class="betting-risk">
+                        <span class="risk-tag">特徴:</span> {{ pat.risk }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
         <!-- 推奨馬ランキング -->
         <section class="card">
             <h2>📊 データ適性 & 条件補正スコアランキング</h2>
