@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ race_title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🏇 {{ race_title }}</h1>
+            <p class="subtitle">過去5年データ（枠順・脚質）× 良馬場・前残りバイアス自動解析</p>
+        </header>
+
+        <section class="card">
+            <h2>💡 コース黄金パターン & 馬場傾向</h2>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <span class="label">最有利枠</span>
+                    <span class="value-highlight">{{ data.golden_pattern.top_frame }}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">有利脚質</span>
+                    <span class="value">{{ data.golden_pattern.top_style }}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">馬場コンディション</span>
+                    <span class="value status-badge">{{ data.golden_pattern.bias_note }}</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>📊 データ適性推奨ランキング</h2>
+            <table class="ranking-table">
+                <thead>
+                    <tr>
+                        <th>順位</th>
+                        <th>馬番</th>
+                        <th>馬名</th>
+                        <th>枠 / 脚質</th>
+                        <th>データスコア</th>
+                        <th>判定 / 危険度</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for horse in data.horses %}
+                    <tr class="{% if horse.is_dangerous %}dangerous-row{% endif %}">
+                        <td><strong>{{ loop.index }}位</strong></td>
+                        <td><span class="frame-badge">{{ horse.num }}</span></td>
+                        <td><strong>{{ horse.name }}</strong></td>
+                        <td>{{ horse.frame }}枠 / {{ horse.style }}</td>
+                        <td>
+                            <div class="score-bar-container">
+                                <span class="score-text">{{ horse.score }}点</span>
+                                <div class="score-bar" style="width: {{ horse.score }}%;"></div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if horse.is_dangerous %}
+                                <span class="badge danger">⚠️ 危険な人気馬</span>
+                                <div class="danger-detail">{{ horse.danger_reason }}</div>
+                            {% else %}
+                                <span class="badge success">良条件</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </div>
+</body>
+</html>
