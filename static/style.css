@@ -147,6 +147,104 @@ body {
     color: var(--text-primary);
 }
 
+/* AIおすすめ馬券スタイル */
+.betting-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 14px;
+}
+
+.betting-item {
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.betting-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.betting-badge {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.badge-solid { background-color: #2563eb; }
+.badge-hole { background-color: #ea580c; }
+.badge-danger-cut { background-color: #dc2626; }
+.badge-pace { background-color: #16a34a; }
+.badge-max { background-color: #9333ea; }
+
+.betting-type {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.betting-title {
+    margin: 0 0 10px 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.betting-recommendation {
+    background: var(--accent-light);
+    border: 1px dashed #93c5fd;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+
+.rec-label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.rec-code {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #1e40af;
+    font-family: inherit;
+}
+
+.betting-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0 0 10px 0;
+}
+
+.betting-risk {
+    font-size: 0.8rem;
+    color: #475569;
+    background: #f8fafc;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border-left: 3px solid #cbd5e1;
+}
+
+.risk-tag {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* ランキングテーブル */
 .ranking-table {
     width: 100%;
     border-collapse: collapse;
