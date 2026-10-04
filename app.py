@@ -1,148 +1,94 @@
-# app.py
-import streamlit as st
 import pandas as pd
-import numpy as np
-import os
+from flask import Flask, render_template
 
-# 画面全体のテーマをワイドに設定
-st.set_page_config(page_title="KEIBA DATA ANALYTICS", layout="wide")
+app = Flask(__name__)
 
-# 外部デザインファイル (style.css) を安全に読み込む
-if os.path.exists("style.css"):
-    with open("style.css", "r", encoding="utf-8") as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+class RaceAnalyzer:
+    def __init__(self, frame_csv="2020_2025_枠番.csv", style_csv="2020_2025脚質.csv"):
+        # 過去5年データの読み込み
+        self.df_frame = pd.read_csv(frame_csv, encoding='cp932')
+        self.df_style = pd.read_csv(style_csv, encoding='cp932')
 
-st.title("📊 KEIBA DATA ANALYTICS")
-st.caption("🤖 過去5年間のコース・展開統計に基づく、完全自動期待値算出システム")
+    def analyze_race(self, course_name, condition, horses, track_bias_front=True):
+        """
+        コース・条件・出走馬データからデータ適性スコアを算出し、危険馬を抽出するロジック
+        """
+        # コース別データの取得
+        frame_data = self.df_frame[(self.df_frame['場所･距離'] == course_name) & (self.df_frame['条件'] == condition)]
+        style_data = self.df_style[(self.df_style['場所･距離'] == course_name) & (self.df_style['条件'] == condition)]
 
-# TARGETファイル名の固定設定
-WAKU_FILE = "2020_2025_枠番.csv"
-KYAKU_FILE = "2020_2025脚質.csv"
-THIS_WEEK_FILE = "DG261003.csv"
+        if frame_data.empty or style_data.empty:
+            return None
 
-def load_csv_safely(file_path, has_header=True):
-    if not os.path.exists(file_path):
-        return None
-    try:
-        header_setting = 0 if has_header else None
-        df = pd.read_csv(
-            file_path, 
-            encoding='shift_jis', 
-            dtype=str, 
-            header=header_setting,
-            na_values=['*', '-', ' '],
-            on_bad_lines='skip'
-        )
-        if has_header:
-            df.columns = df.columns.str.strip()
-            for col in df.columns:
-                df[col] = df[col].str.strip()
-        else:
-            for col in df.columns:
-                df[col] = df[col].astype(str).str.strip()
-        return df
-    except Exception as e:
-        st.error(f"ファイル【{file_path}】の読み込みエラー: {e}")
-        return None
+        frame_row = frame_data.iloc[0]
+        style_row = style_data.iloc[0]
 
-# ファイルチェック
-files_exist = os.path.exists(WAKU_FILE) and os.path.exists(KYAKU_FILE) and os.path.exists(THIS_WEEK_FILE)
+        # 黄金パターン情報の整理
+        golden_pattern = {
+            "top_frame": f"{frame_row['５枠']}% (5枠)",
+            "top_style": f"{style_row['差し']}% (差し) / {style_row['先行']}% (先行)",
+            "bias_note": "前残りバイアス適用中: 先行・逃げ馬のスコア補正あり" if track_bias_front else "標準バイアス"
+        }
 
-if not files_exist:
-    st.warning("⚠️ GitHubリポジトリ内にデータファイルが見つかりません。")
-    st.info(f"GitHub内に以下のファイル名でCSVを配置してください。\n1. `{WAKU_FILE}`\n2. `{KYAKU_FILE}`\n3. `{THIS_WEEK_FILE}`")
-else:
-    df_waku = load_csv_safely(WAKU_FILE, has_header=True)
-    df_kyaku = load_csv_safely(KYAKU_FILE, has_header=True)
-    df_this = load_csv_safely(THIS_WEEK_FILE, has_header=False)
+        analyzed_horses = []
+        for horse in horses:
+            frame_num = f"{horse['frame']}枠"
+            frame_rate = float(frame_row.get(frame_num, 0.0))
+            style_rate = float(style_row.get(horse['style'], 0.0))
 
-    if df_waku is not None and df_kyaku is not None and df_this is not None:
-        try:
-            # ヘッダーなしCSVの列位置を定義
-            waku_index = 0   # 枠番
-            umaban_index = 2 # 馬番
-            bamei_index = 7  # 馬名
-            kishu_index = 12 # 騎手
+            # 基本データスコア（枠複勝率 + 脚質複勝率）
+            base_score = (frame_rate + style_rate) / 2
 
-            # 💡【新検索機能】過去5年データ内にある「全てのコース名」を自動でリスト化
-            all_courses = sorted(df_waku['場所･距離'].dropna().unique())
-            
-            # 🎯 画面最上部にコース選択の検索ドロップダウンを設置！
-            selected_course = st.selectbox(
-                "🏁 分析したい競馬場・コースを選択してください", 
-                options=all_courses,
-                index=0
-            )
-            
-            st.info(f"🔍 選択中のコース: 【{selected_course}】")
-            
-            # 選択されたコースの行を過去データから抽出
-            waku_match = df_waku[df_waku['場所･距離'] == selected_course]
-            kyaku_match = df_kyaku[df_kyaku['場所･距離'] == selected_course]
-            
-            if not waku_match.empty:
-                # 該当コースの一番上の条件（または全体の平均行）をベースに設定
-                waku_row = waku_match.iloc[0]
-                kyaku_row = kyaku_match.iloc[0] if not kyaku_match.empty else None
-                
-                result_rows = []
-                for idx, row in df_this.iterrows():
-                    # データの長さを安全にチェックして抽出
-                    if len(row) > bamei_index:
-                        horse_name = row.iloc[bamei_index]
-                        raw_waku = str(row.iloc[waku_index]).strip()
-                        umaban = row.iloc[umaban_index]
-                        kishu = row.iloc[kishu_index]
-                        
-                        # 数字を全角の「〇枠」に変換
-                        zen_dict = {"1":"１","2":"２","3":"３","4":"４","5":"５","6":"６","7":"７","8":"８"}
-                        waku_key = f"{zen_dict.get(raw_waku, raw_waku)}枠"
-                        
-                        # 枠の複勝率スコアを取得
-                        waku_score_raw = waku_row.get(waku_key, 0)
-                        waku_score = pd.to_numeric(waku_score_raw, errors='coerce')
-                        waku_score = waku_score if not np.isnan(waku_score) else 0
-                        
-                        total_score = round(float(waku_score), 2)
-                        
-                        result_rows.append({
-                            "馬番": umaban,
-                            "馬名": horse_name,
-                            "枠番": waku_key,
-                            "騎手": kishu,
-                            "過去5年枠複勝率": f"{waku_score}%",
-                            "AI期待値スコア": total_score
-                        })
-                
-                if result_rows:
-                    ranking_df = pd.DataFrame(result_rows).sort_values(by="AI期待値スコア", ascending=False)
-                    top_horse = ranking_df.iloc[0]
-                    
-                    st.write("")
-                    st.subheader("🏆 AI HIGHLIGHT")
-                    m_col1, m_col2, m_col3 = st.columns(3)
-                    with m_col1:
-                        st.metric(label="本命推奨馬 (AI 1st)", value=f"{top_horse['馬名']}")
-                    with m_col2:
-                        st.metric(label="ゲート (GATE)", value=f"{top_horse['馬番']}番 ({top_horse['枠番']})")
-                    with m_col3:
-                        st.metric(label="コース適性期待値", value=f"{top_horse['AI期待値スコア']}%")
-                    
-                    st.write("")
-                    st.subheader("📋 COMPUTED EXPECTED RANKING")
-                    
-                    st.dataframe(
-                        ranking_df, 
-                        use_container_width=True, 
-                        hide_index=True,
-                        column_config={
-                            "AI期待値スコア": st.column_config.NumberColumn("総合スコア", format="%.2f"),
-                            "馬名": st.column_config.TextColumn("競走馬名"),
-                        }
-                    )
-                else:
-                    st.error("出馬表データの解析に失敗しました。")
-            else:
-                st.warning(f"⚠️ 過去データの中にコース『{selected_course}』の枠順データが見つかりませんでした。")
-        except Exception as e:
-            st.error(f"計算中にエラーが発生しました: {e}")
+            # トラックバイアス補正（前残り傾向時の加減算）
+            bias_score = 0
+            if track_bias_front:
+                if horse['style'] in ['逃げ', '先行']:
+                    bias_score += 15.0  # 前残り補正で加点
+                elif horse['style'] in ['追込']:
+                    bias_score -= 10.0  # 前残りバイアス下で減点
+
+            final_score = min(round(base_score + bias_score, 1), 99.9)
+
+            # 危険な人気馬判定（人気順位上位かつ枠または脚質の複勝率が低迷している場合）
+            is_dangerous = False
+            danger_reason = ""
+            if horse['popularity'] <= 2:
+                if frame_rate <= 10.0:
+                    is_dangerous = True
+                    danger_reason = f"コース不振枠（{frame_num}：複勝率{frame_rate}%）に入った人気馬"
+                elif track_bias_front and horse['style'] == '追込':
+                    is_dangerous = True
+                    danger_reason = "前残りバイアス下での後方一気脚質（追込）リスク"
+
+            analyzed_horses.append({
+                **horse,
+                "frame_rate": frame_rate,
+                "style_rate": style_rate,
+                "score": final_score,
+                "is_dangerous": is_dangerous,
+                "danger_reason": danger_reason
+            })
+
+        # スコア順にソート（ランキング化）
+        analyzed_horses.sort(key=lambda x: x['score'], reverse=True)
+        return {"golden_pattern": golden_pattern, "horses": analyzed_horses}
+
+analyzer = RaceAnalyzer()
+
+@app.route('/')
+def index():
+    # 毎日王冠（東京・芝1800m）の出走馬データ例
+    tokyo_horses = [
+        {"num": 1, "name": "セイウンハーデス", "frame": 1, "style": "先行", "odds": 10.2, "popularity": 4},
+        {"num": 2, "name": "リアライズシリウス", "frame": 1, "style": "差し", "odds": 2.7, "popularity": 1},
+        {"num": 9, "name": "ドラゴンブースト", "frame": 5, "style": "差し", "odds": 29.7, "popularity": 9},
+        {"num": 10, "name": "エルトンバローズ", "frame": 5, "style": "先行", "odds": 25.3, "popularity": 6},
+        {"num": 13, "name": "ホウオウビスケッツ", "frame": 7, "style": "先行", "odds": 25.5, "popularity": 7},
+        {"num": 17, "name": "ダノンエアズロック", "frame": 8, "style": "先行", "odds": 28.2, "popularity": 8},
+    ]
+
+    result = analyzer.analyze_race("東京・芝1800m", "古馬・オープン", tokyo_horses, track_bias_front=True)
+    return render_template('index.html', race_title="毎日王冠（GII）データ分析ダッシュボード", data=result)
+
+if __name__ == '__main__':
+    app.run(debug=True)
