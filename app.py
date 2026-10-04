@@ -10,7 +10,8 @@ st.set_page_config(page_title="KEIBA DATA ANALYTICS", layout="wide")
 # 外部デザインファイル (style.css) を安全に読み込む
 if os.path.exists("style.css"):
     with open("style.css", "r", encoding="utf-8") as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_transform=True)
+        # unsafe_allow_html=True に修正（これでエラーが消えます）
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 st.title("📊 KEIBA DATA ANALYTICS")
 st.caption("🤖 過去5年間のコース・展開統計に基づく、完全自動期待値算出システム")
