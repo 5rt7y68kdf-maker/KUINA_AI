@@ -3,25 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ race_title }}</title>
+    <title>{{ selected_race.title }} - 競馬データ分析ダッシュボード</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1>🏇 {{ race_title }}</h1>
-            <p class="subtitle">過去5年データ（枠順・脚質）× 良馬場・前残りバイアス自動解析</p>
+            <h1>🏇 {{ selected_race.title }}</h1>
+            <p class="subtitle">過去5年データ（枠順・脚質）× 展開予想 × トラックバイアス自動解析</p>
         </header>
 
+        <!-- 全レース選択フォーム -->
+        <section class="card race-selector-card">
+            <form method="GET" action="/">
+                <label for="race_id" class="selector-label">🎯 対象レースを選択:</label>
+                <select name="race_id" id="race_id" onchange="this.form.submit()" class="race-select">
+                    {% for race in all_races %}
+                        <option value="{{ race.id }}" {% if race.id == selected_race.id %}selected{% endif %}>
+                            {{ race.title }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+        </section>
+
+        <!-- 展開予想カード -->
+        <section class="card pace-card">
+            <h2>⏱️ 展開予想（ペース & 隊列シナリオ）</h2>
+            <div class="pace-grid">
+                <div class="pace-item">
+                    <span class="label">想定ペース</span>
+                    <span class="value-highlight">{{ data.pace_analysis.pace }}</span>
+                </div>
+                <div class="pace-item">
+                    <span class="label">前目構成</span>
+                    <span class="value">{{ data.pace_analysis.front_runners }}</span>
+                </div>
+            </div>
+            <div class="scenario-box">
+                <p><strong>【展開シナリオ】</strong> {{ data.pace_analysis.scenario }}</p>
+            </div>
+        </section>
+
+        <!-- コース黄金パターンカード -->
         <section class="card">
             <h2>💡 コース黄金パターン & 馬場傾向</h2>
             <div class="summary-grid">
                 <div class="summary-item">
-                    <span class="label">最有利枠</span>
+                    <span class="label">5年最高複勝率枠</span>
                     <span class="value-highlight">{{ data.golden_pattern.top_frame }}</span>
                 </div>
                 <div class="summary-item">
-                    <span class="label">有利脚質</span>
+                    <span class="label">5年最高複勝率脚質</span>
                     <span class="value">{{ data.golden_pattern.top_style }}</span>
                 </div>
                 <div class="summary-item">
@@ -31,14 +64,16 @@
             </div>
         </section>
 
+        <!-- 推奨馬ランキング -->
         <section class="card">
-            <h2>📊 データ適性推奨ランキング</h2>
+            <h2>📊 データ適性 & 展開重視ランキング</h2>
             <table class="ranking-table">
                 <thead>
                     <tr>
                         <th>順位</th>
                         <th>馬番</th>
                         <th>馬名</th>
+                        <th>騎手</th>
                         <th>枠 / 脚質</th>
                         <th>データスコア</th>
                         <th>判定 / 危険度</th>
@@ -50,6 +85,7 @@
                         <td><strong>{{ loop.index }}位</strong></td>
                         <td><span class="frame-badge">{{ horse.num }}</span></td>
                         <td><strong>{{ horse.name }}</strong></td>
+                        <td>{{ horse.jockey }}</td>
                         <td>{{ horse.frame }}枠 / {{ horse.style }}</td>
                         <td>
                             <div class="score-bar-container">
