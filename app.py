@@ -16,9 +16,9 @@ st.title("📊 KEIBA DATA ANALYTICS")
 st.caption("🤖 過去5年間のコース・展開統計に基づく、完全自動期待値算出システム")
 
 # 💡 【改善点】ファイルを固定の名前で自動読み込みするように設定
-WAKU_FILE = "過去5年_枠順集計.csv"
-KYAKU_FILE = "過去5年_脚質集計.csv"
-THIS_WEEK_FILE = "今週の出馬表.csv"
+WAKU_FILE = "2020_2025_枠番.csv"
+KYAKU_FILE = "2020_2025脚質.csv"
+THIS_WEEK_FILE = "DG261003.csv"
 
 def load_csv_safely(file_path):
     if not os.path.exists(file_path):
