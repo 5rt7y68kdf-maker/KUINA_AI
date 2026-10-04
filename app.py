@@ -15,7 +15,7 @@ if os.path.exists("style.css"):
 st.title("📊 KEIBA DATA ANALYTICS")
 st.caption("🤖 過去5年間のコース・展開統計に基づく、完全自動期待値算出システム")
 
-# 💡 【改善点】ファイルを固定の名前で自動読み込みするように設定
+# 💡 実際のTARGETファイル名に固定設定
 WAKU_FILE = "2020_2025_枠番.csv"
 KYAKU_FILE = "2020_2025脚質.csv"
 THIS_WEEK_FILE = "DG261003.csv"
@@ -43,8 +43,8 @@ def load_csv_safely(file_path):
 files_exist = os.path.exists(WAKU_FILE) and os.path.exists(KYAKU_FILE) and os.path.exists(THIS_WEEK_FILE)
 
 if not files_exist:
-    st.warning("⚠️ GitHub（リポジトリ）の中にデータファイルが見つかりません。")
-    st.info(f"GitHubの同じフォルダ内に、以下の【3つの日本語ファイル名】でCSVを配置してプッシュしてください。\n\n"
+    st.warning("⚠️ GitHubリポジトリ内にデータファイルが見つかりません。")
+    st.info(f"GitHubの同じフォルダ内に、以下のファイル名でCSVを配置してプッシュしてください。\n\n"
             f"1. `{WAKU_FILE}`\n"
             f"2. `{KYAKU_FILE}`\n"
             f"3. `{THIS_WEEK_FILE}`")
