@@ -110,7 +110,7 @@ class RaceAnalyzer:
                 df_f = pd.read_csv(self.frame_csv, encoding='cp932')
                 df_s = pd.read_csv(self.style_csv, encoding='cp932')
                 f_match = df_f[(df_f['場所･距離'] == course_name) & (df_f['条件'] == condition)]
-                s_match = df_s[(df_s['場所･距離'] == condition) & (df_s['条件'] == condition)]
+                s_match = df_s[(df_s['場所･距離'] == course_name) & (df_s['条件'] == condition)]
 
                 if not f_match.empty and not s_match.empty:
                     f_row = f_match.iloc[0]
@@ -129,17 +129,14 @@ class RaceAnalyzer:
 
             base_score = (f_rate + s_rate) / 2
             
-            # ドロップダウン選択による動的補正
+            # ドロップダウン選択による補正
             bias_score = 0.0
-            
-            # 馬場状態補正（重・不良なら先行力がさらに重要）
             if track_condition in ["重", "不良"]:
                 if h['style'] in ["逃げ", "先行"]:
                     bias_score += 10.0
                 elif h['style'] == "追込":
                     bias_score -= 8.0
 
-            # コース傾向補正
             if track_bias == "前・先行有利":
                 if h['style'] in ["逃げ", "先行"]:
                     bias_score += 12.0
@@ -188,9 +185,13 @@ class RaceAnalyzer:
             "bias_note": f"天気: {weather} / 馬場: {track_condition} ({track_bias})"
         }
 
+        # AIおすすめ馬券 5パターンの自動生成
+        betting_patterns = self._generate_betting_patterns(analyzed_horses, pace_analysis)
+
         return {
             "golden_pattern": golden_pattern,
             "pace_analysis": pace_analysis,
+            "betting_patterns": betting_patterns,
             "horses": analyzed_horses
         }
 
@@ -216,6 +217,108 @@ class RaceAnalyzer:
             "scenario": scenario,
             "front_runners": f"逃げ: {nige_count}頭 / 先行: {senko_count}頭"
         }
+
+    def _generate_betting_patterns(self, horses, pace_analysis):
+        if not horses:
+            return []
+
+        top_1 = horses[0]
+        top_2 = horses[1] if len(horses) > 1 else top_1
+        top_3 = horses[2] if len(horses) > 2 else top_2
+        top_4 = horses[3] if len(horses) > 3 else top_3
+
+        dangerous_horses = [h for h in horses if h.get('is_dangerous')]
+        dangerous_names = [h['name'] for h in dangerous_horses]
+        dangerous_nums = {h['num'] for h in dangerous_horses}
+
+        # 穴馬選定（単勝10倍以上の馬の中からスコア最上位）
+        dark_horses = [h for h in horses if h.get('odds', 0) >= 10.0 and h['num'] != top_1['num']]
+        hole_1 = dark_horses[0] if dark_horses else (top_3 if top_3['num'] != top_1['num'] else top_2)
+
+        # 1. 本命・堅実
+        p1_rec = f"{top_1['num']} - {top_2['num']}" if top_1['num'] != top_2['num'] else f"{top_1['num']} - {top_3['num']}"
+        if top_2['num'] != top_3['num'] and top_1['num'] != top_3['num']:
+            p1_rec += f", {top_1['num']} - {top_3['num']}"
+
+        # 2. 穴馬流し
+        p2_opponents = [h['num'] for h in [top_1, top_2, top_3] if h['num'] != hole_1['num']]
+        if not p2_opponents:
+            p2_opponents = [top_4['num']]
+        p2_rec = f"{hole_1['num']} (軸) ➔ " + ", ".join(map(str, p2_opponents))
+
+        # 3. 危険馬カット
+        safe_top_5 = [h for h in horses if h['num'] not in dangerous_nums][:5]
+        if len(safe_top_5) < 3:
+            safe_top_5 = horses[:5]
+        
+        s_1 = safe_top_5[0]['num']
+        s_23 = list(dict.fromkeys([h['num'] for h in safe_top_5[1:3]]))
+        s_rest = list(dict.fromkeys([h['num'] for h in safe_top_5[1:5]]))
+        
+        p3_rec = f"1頭目: {s_1} / 2頭目: {', '.join(map(str, s_23))} / 3頭目: {', '.join(map(str, s_rest))}"
+
+        # 4. 展開BOX
+        box_nums = list(dict.fromkeys([h['num'] for h in [top_1, top_2, top_3, top_4]]))
+        p4_rec = f"BOX: {', '.join(map(str, box_nums))} （計4点）"
+
+        # 5. 万馬券フォーメーション
+        t1 = list(dict.fromkeys([top_1['num'], top_2['num']]))
+        t2 = list(dict.fromkeys([top_1['num'], top_2['num'], top_3['num'], hole_1['num']]))
+        t3 = list(dict.fromkeys([top_1['num'], top_2['num'], top_3['num'], top_4['num'], hole_1['num']]))
+        p5_rec = f"1着: {', '.join(map(str, t1))} ➔ 2着: {', '.join(map(str, t2))} ➔ 3着: {', '.join(map(str, t3))}"
+
+        return [
+            {
+                "id": 1,
+                "badge": "本命・堅実",
+                "badge_class": "badge-solid",
+                "name": "① 本命・堅実パターン（馬連・ワイド）",
+                "type": "馬連・ワイド流し",
+                "recommendation": p1_rec,
+                "description": f"データスコア最上位【{top_1['name']}】を軸に、高適性馬【{top_2['name']}】・【{top_3['name']}】へ流す最も着実な買い目。",
+                "risk": "低リスク / 安定度：高"
+            },
+            {
+                "id": 2,
+                "badge": "穴馬一発",
+                "badge_class": "badge-hole",
+                "name": "② 穴馬一発・高配当パターン（ワイド流し）",
+                "type": "ワイド軸1頭流し",
+                "recommendation": p2_rec,
+                "description": f"高適性でありながらオッズの甘い高配当穴馬【{hole_1['name']}】（単勝{hole_1.get('odds', '??')}倍）を軸に指定した回収率特化パターン。",
+                "risk": "中リスク / 配当重視"
+            },
+            {
+                "id": 3,
+                "badge": "危険馬消し",
+                "badge_class": "badge-danger-cut",
+                "name": "③ 危険人気馬カット・効率パターン（3連複フォーメーション）",
+                "type": "3連複フォーメーション",
+                "recommendation": p3_rec,
+                "description": f"大崩れリスクのある危険人気馬（{', '.join(dangerous_names) if dangerous_names else '該当なし'}）を完全にカットし、期待値の高い適性馬のみで構成したスマート買い目。",
+                "risk": "中リスク / 期待値重視"
+            },
+            {
+                "id": 4,
+                "badge": "展開ハマり",
+                "badge_class": "badge-pace",
+                "name": "④ 展開ハマり・的中重視パターン（3連複BOX）",
+                "type": "3連複BOX",
+                "recommendation": p4_rec,
+                "description": f"想定ペース【{pace_analysis.get('pace', '')}】と当日の馬場バイアスに最高適合する上位4頭（{', '.join([h['name'] for h in [top_1, top_2, top_3, top_4]])}）によるBOX買い。",
+                "risk": "低〜中リスク / 中小穴対応"
+            },
+            {
+                "id": 5,
+                "badge": "一撃必殺",
+                "badge_class": "badge-max",
+                "name": "⑤ 一撃必殺・万馬券狙いパターン（3連単フォーメーション）",
+                "type": "3連単フォーメーション",
+                "recommendation": p5_rec,
+                "description": f"上位2頭を1着固定にし、相手に好適性穴馬【{hole_1['name']}】らを絡めて万馬券・超高配当を狙い撃つフォーメーション。",
+                "risk": "高リスク / 超高配当狙い"
+            }
+        ]
 
     def _get_default_races(self):
         return [{
