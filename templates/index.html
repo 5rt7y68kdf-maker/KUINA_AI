@@ -10,20 +10,37 @@
     <div class="container">
         <header class="header">
             <h1>🏇 {{ selected_race.title }}</h1>
-            <p class="subtitle">過去5年データ（枠順・脚質）× 展開予想 × トラックバイアス自動解析</p>
+            <p class="subtitle">過去5年データ × 馬場バイアス設定 × リアルタイムデータ分析</p>
         </header>
 
-        <!-- 全レース選択フォーム -->
-        <section class="card race-selector-card">
-            <form method="GET" action="/">
-                <label for="race_id" class="selector-label">🎯 対象レースを選択:</label>
-                <select name="race_id" id="race_id" onchange="this.form.submit()" class="race-select">
-                    {% for race in all_races %}
-                        <option value="{{ race.id }}" {% if race.id == selected_race.id %}selected{% endif %}>
-                            {{ race.title }}
-                        </option>
-                    {% endfor %}
-                </select>
+        <!-- 設定パネル（レース選択・GitHub取得・馬場打ち込み） -->
+        <section class="card config-card">
+            <h2>⚙️ 条件・データソース設定</h2>
+            <form method="GET" action="/" class="config-form">
+                <div class="form-group">
+                    <label for="race_id">🎯 レース選択:</label>
+                    <select name="race_id" id="race_id" onchange="this.form.submit()" class="form-control">
+                        {% for race in all_races %}
+                            <option value="{{ race.id }}" {% if race.id == selected_race.id %}selected{% endif %}>
+                                {{ race.title }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group flex-1">
+                        <label for="track_bias">🌱 馬場コンディション（自由入力）:</label>
+                        <input type="text" id="track_bias" name="track_bias" value="{{ track_bias }}" placeholder="例: 良馬場・前残り、重・外差し" class="form-control">
+                    </div>
+                    <div class="form-group flex-2">
+                        <label for="github_url">🔗 GitHub CSV URL（来週以降データ検索用）:</label>
+                        <input type="text" id="github_url" name="github_url" value="{{ github_url }}" placeholder="https://raw.githubusercontent.com/.../DG261010.CSV" class="form-control">
+                    </div>
+                    <div class="form-group btn-group">
+                        <button type="submit" class="btn btn-primary">設定適用・再計算</button>
+                    </div>
+                </div>
             </form>
         </section>
 
@@ -58,7 +75,7 @@
                     <span class="value">{{ data.golden_pattern.top_style }}</span>
                 </div>
                 <div class="summary-item">
-                    <span class="label">馬場コンディション</span>
+                    <span class="label">設定馬場コンディション</span>
                     <span class="value status-badge">{{ data.golden_pattern.bias_note }}</span>
                 </div>
             </div>
@@ -66,7 +83,7 @@
 
         <!-- 推奨馬ランキング -->
         <section class="card">
-            <h2>📊 データ適性 & 展開重視ランキング</h2>
+            <h2>📊 データ適性 & 馬場補正スコアランキング</h2>
             <table class="ranking-table">
                 <thead>
                     <tr>
@@ -98,7 +115,7 @@
                                 <span class="badge danger">⚠️ 危険な人気馬</span>
                                 <div class="danger-detail">{{ horse.danger_reason }}</div>
                             {% else %}
-                                <span class="badge success">良条件</span>
+                                <span class="badge success">適性良好</span>
                             {% endif %}
                         </td>
                     </tr>
