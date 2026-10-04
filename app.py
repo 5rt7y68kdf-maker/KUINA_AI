@@ -92,3 +92,9 @@ def index():
 
 if __name__ == '__main__':
     app.run(debug=True)
+    
+if __name__ == '__main__':
+    # Renderが指定するPORT環境変数を取得（ローカル実行時は5000）
+    port = int(os.environ.get('PORT', 5000))
+    # host='0.0.0.0' を指定して外部アクセスを許可
+    app.run(host='0.0.0.0', port=port)
