@@ -256,7 +256,7 @@ class CourseRotationAnalyzer:
       return res
 
     comments = []
-    last_race = horse_past_df.iloc[0] if len(horse_past_df) > 0 else None
+    last_race = horse_past_df.iloc if len(horse_past_df) > 0 else None
 
     # 同近接距離実績
     if "距離" in horse_past_df.columns and "着順" in horse_past_df.columns:
@@ -343,7 +343,7 @@ bad_analyzer = BadTrackAnalyzer()
 pci_analyzer = PciUp3Analyzer()
 rotation_analyzer = CourseRotationAnalyzer()
 
-# --- デモ用出走馬データ（※実際はCSV連携） ---
+# --- デモ用出走馬データ（※修正済み） ---
 demo_horses = [
     {
         "num": 1,
@@ -351,12 +351,12 @@ demo_horses = [
         "style_default": "逃げ",
         "past_data": pd.DataFrame({
             "通過1": ["01", "01", "02"],
-            "頭数": [16, 16, 14],
+            "頭数": [16, 16, 16],
             "馬場状態": ["重", "良", "稍重"],
             "着順": ["1", "2", "1"],
             "上り3F順位": ["2", "4", "1"],
             "PCI": [48.5, 52.0, 49.0],
-            "距離": [1800, 1800, 1600],
+            "距離": [1800, 1800, 1800],
             "間隔": ["中4週", "中8週", "中3週"],
             "馬体重増減": ["+2", "+4", "0"],
         }),
@@ -372,7 +372,7 @@ demo_horses = [
             "着順": ["1", "1", "3"],
             "上り3F順位": ["1", "1", "2"],
             "PCI": [59.0, 61.2, 58.5],
-            "距離": [1800, 2000, 1800],
+            "距離": [1800, 1800, 1800],
             "間隔": ["中12週", "中4週", "中5週"],
             "馬体重増減": ["+14", "+2", "-2"],
         }),
@@ -388,7 +388,7 @@ demo_horses = [
             "着順": ["8", "11", "5"],
             "上り3F順位": ["5", "8", "3"],
             "PCI": [42.0, 40.5, 45.0],
-            "距離": [1400, 1600, 1400],
+            "距離": [1800, 1800, 1800],
             "間隔": ["中3週", "中2週", "中6週"],
             "馬体重増減": ["0", "-4", "+2"],
         }),
@@ -526,6 +526,3 @@ with tab2:
 
       with col3:
         st.metric(label="総合適性スコア", value=f"{horse['total_score']} pt")
-🚀 実行方法
-コマンドプロンプトで app.py があるフォルダに移動し、以下を実行します：
-streamlit run app.py
