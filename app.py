@@ -368,3 +368,148 @@ horse_total_score += eval_res['score_adjustment']
 # 4. 画面（UI）表示用のデータにフラグやコメントをセット
 horse_display_data['bad_track_flag'] = eval_res['status_flag']  # 例: '道悪◎', '危険馬'
 horse_display_data['bad_track_comment'] = eval_res['comment']
+
+import re
+import pandas as pd
+
+
+class PciUp3Analyzer:
+  """PCI（ペース耐性）と上がり3F（末脚の絶対値）を解析し、
+
+  想定ペースに応じた適性スコアと評価コメントを自動生成するクラス
+  """
+
+  def __init__(self):
+    pass
+
+  def evaluate_horse(self, horse_past_df, expected_pace='ミドルペース'):
+    """該当馬のPCIおよび上がり3F適性を評価する関数
+
+    Parameters:
+    - horse_past_df (pd.DataFrame): 該当馬の過去走データ
+    - expected_pace (str): 今回のレース予想ペース ('ハイペース',
+    'ミドルペース', 'スローペース')
+
+    Returns:
+    - dict: {
+        'score_adjustment': float (スコア補正値 +/-),
+        'pci_flag': str ('ハイペース耐性〇', '瞬発力勝負〇', 'ハイペース懸念',
+        '標準'),
+        'up3_flag': str ('キレ味抜群', '末脚上位', '標準'),
+        'comment': str (画面表示用コメント),
+        'stats': dict (解析結果サマリー)
+      }
+    """
+    res = {
+        'score_adjustment': 0.0,
+        'pci_flag': '標準',
+        'up3_flag': '標準',
+        'comment': '',
+        'stats': {
+            'avg_pci_top3': None,
+            'top_up3_count': 0,
+            'recent_races': 0,
+        },
+    }
+
+    if horse_past_df is None or horse_past_df.empty:
+      res['comment'] = '過去走データなし'
+      return res
+
+    # 直近5走を取得
+    recent = horse_past_df.head(5)
+    res['stats']['recent_races'] = len(recent)
+
+    # -------------------------------------------------------------
+    # 軸1: 上がり3F順位の分析（末脚の絶対値評価）
+    # -------------------------------------------------------------
+    top_up3_count = 0
+    if '上り3F順位' in recent.columns:
+      for _, row in recent.iterrows():
+        try:
+          rank_str = str(row.get('上り3F順位', ''))
+          match = re.search(r'\d+', rank_str)
+          if match:
+            rank = int(match.group())
+            if rank <= 2:  # 上がり1〜2位をカウント
+              top_up3_count += 1
+        except Exception:
+          continue
+
+    res['stats']['top_up3_count'] = top_up3_count
+
+    # 上がり3Fによる評価・スコア加算
+    up3_comment = ''
+    if top_up3_count >= 3:
+      res['score_adjustment'] += 10.0
+      res['up3_flag'] = 'キレ味抜群'
+      up3_comment = (
+          f'近{len(recent)}走中{top_up3_count}回で上がり2位以内の強力な末脚'
+      )
+    elif top_up3_count >= 2:
+      res['score_adjustment'] += 5.0
+      res['up3_flag'] = '末脚上位'
+      up3_comment = (
+          f'安定した末脚（近{len(recent)}走で上がり2位以内{top_up3_count}回）'
+      )
+
+    # -------------------------------------------------------------
+    # 軸2: PCI（ペース耐性）と想定ペースの合致判定
+    # -------------------------------------------------------------
+    pci_comments = []
+    if 'PCI' in recent.columns and '着順' in recent.columns:
+      # 好走時（3着以内）のPCI平均を優先計算
+      good_races = recent[
+          recent['着順'].astype(str).str.extract(r'(\d+)')[0].astype(float) <= 3
+      ]
+      target_races = good_races if not good_races.empty else recent
+
+      pci_list = []
+      for _, row in target_races.iterrows():
+        try:
+          pci_val = float(str(row.get('PCI', '')).strip())
+          if 30.0 <= pci_val <= 80.0:  # 正常範囲内のPCIデータ
+            pci_list.append(pci_val)
+        except Exception:
+          continue
+
+      if pci_list:
+        avg_pci = sum(pci_list) / len(pci_list)
+        res['stats']['avg_pci_top3'] = round(avg_pci, 1)
+
+        # 想定ペースとの相性判定
+        if expected_pace == 'ハイペース':
+          if avg_pci <= 50.0:
+            res['score_adjustment'] += 8.0
+            res['pci_flag'] = 'ハイペース耐性〇'
+            pci_comments.append(
+                f'ハイペース消耗戦に強み（好走PCI平均 {round(avg_pci, 1)}）'
+            )
+          elif avg_pci >= 58.0:
+            res['score_adjustment'] -= 6.0
+            res['pci_flag'] = 'ハイペース懸念'
+            pci_comments.append(
+                f'スロー粘り型のため激流追走に懸念（好走PCI平均 {round(avg_pci, 1)}）'
+            )
+
+        elif expected_pace == 'スローペース':
+          if avg_pci >= 55.0:
+            res['score_adjustment'] += 8.0
+            res['pci_flag'] = '瞬発力勝負〇'
+            pci_comments.append(
+                f'上がり勝負・瞬発力戦に強い（好走PCI平均 {round(avg_pci, 1)}）'
+            )
+          elif avg_pci <= 45.0:
+            res['score_adjustment'] -= 4.0
+            res['pci_flag'] = '瞬発力不足'
+            pci_comments.append('瞬発力比べの上がり勝負ではやや割り引き')
+
+    # コメントの結合
+    all_comments = [c for c in [up3_comment] + pci_comments if c]
+    res['comment'] = (
+        ' / '.join(all_comments)
+        if all_comments
+        else 'ペース・末脚ともに標準的な適性です。'
+    )
+
+    return res
