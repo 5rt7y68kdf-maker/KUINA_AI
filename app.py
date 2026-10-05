@@ -43,8 +43,6 @@ class RaceAnalyzer:
                         frame = int(parts[0])
                         num = int(parts[2])
                         name = parts[7].strip()
-                        jockey = parts[12].strip()
-                        odds = float(parts[15]) if parts[15].replace('.','',1).isdigit() else 99.0
                         
                         style = "差し"
                         if frame in [1, 2] and num <= 3:
@@ -58,15 +56,10 @@ class RaceAnalyzer:
 
                         horses.append({
                             "num": num, "frame": frame, "name": name,
-                            "jockey": jockey, "odds": odds, "style": style,
-                            "popularity": 0
+                            "style": style
                         })
 
-                horses.sort(key=lambda x: x['odds'])
-                for p_idx, h in enumerate(horses):
-                    h['popularity'] = p_idx + 1
                 horses.sort(key=lambda x: x['num'])
-
                 course_info = self._get_course_info(venue, r_num)
 
                 parsed_races.append({
@@ -129,7 +122,7 @@ class RaceAnalyzer:
 
             base_score = (f_rate + s_rate) / 2
             
-            # ドロップダウン選択による補正
+            # 純データ補正（馬場状態・コースバイアス・展開適合）
             bias_score = 0.0
             if track_condition in ["重", "不良"]:
                 if h['style'] in ["逃げ", "先行"]:
@@ -145,7 +138,7 @@ class RaceAnalyzer:
             elif track_bias == "内枠有利":
                 if h['frame'] in [1, 2, 3]:
                     bias_score += 10.0
-                elif h['frame'] in [7, 8]:
+                elif h['frame'] in [6, 7, 8]:
                     bias_score -= 5.0
             elif track_bias == "差し・外有利":
                 if h['style'] in ["差し", "追込"]:
@@ -155,18 +148,18 @@ class RaceAnalyzer:
 
             final_score = min(round(base_score + bias_score, 1), 99.9)
 
+            # 純データによる不振・危険条件判定
             is_dangerous = False
             danger_reason = ""
-            if h['popularity'] <= 2:
-                if f_rate <= 10.0:
-                    is_dangerous = True
-                    danger_reason = f"コース不振枠（{h['frame']}枠：5年複勝率{f_rate}%）に入った人気馬"
-                elif track_bias == "前・先行有利" and h['style'] == '追込':
-                    is_dangerous = True
-                    danger_reason = "前・先行有利傾向での不発リスク（追込脚質）"
-                elif track_condition in ["重", "不良"] and h['style'] == '追込':
-                    is_dangerous = True
-                    danger_reason = "道悪馬場（重・不良）での後方一気不発リスク"
+            if f_rate <= 10.0:
+                is_dangerous = True
+                danger_reason = f"コース不振枠（{h['frame']}枠：5年複勝率{f_rate}%）該当馬"
+            elif track_bias == "前・先行有利" and h['style'] == '追込':
+                is_dangerous = True
+                danger_reason = "前・先行有利傾向下での不発リスク（追込脚質）"
+            elif track_condition in ["重", "不良"] and h['style'] == '追込':
+                is_dangerous = True
+                danger_reason = "道悪馬場（重・不良）での後方一気不発リスク"
 
             analyzed_horses.append({
                 **h,
@@ -180,12 +173,11 @@ class RaceAnalyzer:
         analyzed_horses.sort(key=lambda x: x['score'], reverse=True)
 
         golden_pattern = {
-            "top_frame": f"{max(frame_rate_map.values())}% ({[k for k,v in frame_rate_map.items() if v==max(frame_rate_map.values())][0]}枠)",
-            "top_style": f"{max(style_rate_map.values())}% ({[k for k,v in style_rate_map.items() if v==max(style_rate_map.values())][0]})",
+            "top_frame": f"{max(frame_rate_map.values())}% ({[k for k,v in frame_rate_map.items() if v==max(frame_rate_map.values())]}枠)",
+            "top_style": f"{max(style_rate_map.values())}% ({[k for k,v in style_rate_map.items() if v==max(style_rate_map.values())]})",
             "bias_note": f"天気: {weather} / 馬場: {track_condition} ({track_bias})"
         }
 
-        # AIおすすめ馬券 5パターンの自動生成
         betting_patterns = self._generate_betting_patterns(analyzed_horses, pace_analysis)
 
         return {
@@ -204,13 +196,13 @@ class RaceAnalyzer:
 
         if nige_count >= 2 or (nige_count + senko_count) >= 6:
             pace = "ハイペース（ハナ争い激化）"
-            scenario = f"【先頭争い: {', '.join(nige_list[:2]) if nige_list else '先行勢'}】同型馬が揃いペースが上がる展開。差し脚質にも展開が向きますが、馬場状態『{track_condition}』・傾向『{track_bias}』への適性が鍵となります。"
+            scenario = f"同型馬が揃いハイペース想定。差し脚質に適性がありますが、馬場『{track_condition}』・傾向『{track_bias}』の適合度が鍵となります。"
         elif nige_count == 1:
             pace = "スロー〜ミドルペース（単騎逃げ濃厚）"
-            scenario = f"【ハナ主張: {', '.join(nige_list)}】単騎マイペースの逃げ。馬場『{track_condition}』・傾向『{track_bias}』の条件下で、前目ポジション（{', '.join((nige_list+senko_list)[:3])}）が押し切る展開が有力です。"
+            scenario = f"【ハナ主張: {', '.join(nige_list)}】単騎マイペース濃厚。馬場『{track_condition}』・傾向『{track_bias}』下で好位グループ（{', '.join((nige_list+senko_list)[:3])}）が優位に立ちます。"
         else:
             pace = "超スローペース（逃げ馬不在）"
-            scenario = f"明確な逃げ馬がおらず超スローペース濃厚。上がり勝負になりますが、選択条件『天気:{weather} / 馬場:{track_condition}』の影響で前目に付けられる馬が有利になります。"
+            scenario = f"明確な逃げ馬不在の超スロー想定。上がり勝負になりますが、選択条件『{weather} / {track_condition}』の影響で前目に付けられる馬が優勢です。"
 
         return {
             "pace": pace,
@@ -231,92 +223,82 @@ class RaceAnalyzer:
         dangerous_names = [h['name'] for h in dangerous_horses]
         dangerous_nums = {h['num'] for h in dangerous_horses}
 
-        # 穴馬選定（単勝10倍以上の馬の中からスコア最上位）
-        dark_horses = [h for h in horses if h.get('odds', 0) >= 10.0 and h['num'] != top_1['num']]
-        hole_1 = dark_horses[0] if dark_horses else (top_3 if top_3['num'] != top_1['num'] else top_2)
+        # データ展開適合馬（上位以外の好適性馬）
+        tactical_fit = [h for h in horses[1:] if not h.get('is_dangerous')]
+        match_horse = tactical_fit[0] if tactical_fit else top_2
 
-        # 1. 本命・堅実
-        p1_rec = f"{top_1['num']} - {top_2['num']}" if top_1['num'] != top_2['num'] else f"{top_1['num']} - {top_3['num']}"
-        if top_2['num'] != top_3['num'] and top_1['num'] != top_3['num']:
-            p1_rec += f", {top_1['num']} - {top_3['num']}"
+        # 1. 本命・最高データ適性
+        p1_rec = f"{top_1['num']} - {top_2['num']}" + (f", {top_1['num']} - {top_3['num']}" if top_2['num'] != top_3['num'] else "")
 
-        # 2. 穴馬流し
-        p2_opponents = [h['num'] for h in [top_1, top_2, top_3] if h['num'] != hole_1['num']]
-        if not p2_opponents:
-            p2_opponents = [top_4['num']]
-        p2_rec = f"{hole_1['num']} (軸) ➔ " + ", ".join(map(str, p2_opponents))
+        # 2. 展開・条件ジャストフィット
+        p2_rec = f"{match_horse['num']} (軸) ➔ {top_1['num']}, {top_2['num']}"
 
-        # 3. 危険馬カット
-        safe_top_5 = [h for h in horses if h['num'] not in dangerous_nums][:5]
-        if len(safe_top_5) < 3:
-            safe_top_5 = horses[:5]
-        
-        s_1 = safe_top_5[0]['num']
-        s_23 = list(dict.fromkeys([h['num'] for h in safe_top_5[1:3]]))
-        s_rest = list(dict.fromkeys([h['num'] for h in safe_top_5[1:5]]))
-        
-        p3_rec = f"1頭目: {s_1} / 2頭目: {', '.join(map(str, s_23))} / 3頭目: {', '.join(map(str, s_rest))}"
+        # 3. 不振データ・リスク回避
+        safe_horses = [h for h in horses if h['num'] not in dangerous_nums][:5]
+        if len(safe_horses) < 3:
+            safe_horses = horses[:5]
+        p3_rec = f"1頭目: {safe_horses[0]['num']} / 2頭目: {', '.join([str(h['num']) for h in safe_horses[1:3]])} / 3頭目: {', '.join([str(h['num']) for h in safe_horses[1:5]])}"
 
-        # 4. 展開BOX
-        box_nums = list(dict.fromkeys([h['num'] for h in [top_1, top_2, top_3, top_4]]))
-        p4_rec = f"BOX: {', '.join(map(str, box_nums))} （計4点）"
+        # 4. データ上位BOX
+        box_nums = [str(h['num']) for h in [top_1, top_2, top_3, top_4]]
+        p4_rec = f"BOX: {', '.join(box_nums)} （計4点）"
 
-        # 5. 万馬券フォーメーション
-        t1 = list(dict.fromkeys([top_1['num'], top_2['num']]))
-        t2 = list(dict.fromkeys([top_1['num'], top_2['num'], top_3['num'], hole_1['num']]))
-        t3 = list(dict.fromkeys([top_1['num'], top_2['num'], top_3['num'], top_4['num'], hole_1['num']]))
-        p5_rec = f"1着: {', '.join(map(str, t1))} ➔ 2着: {', '.join(map(str, t2))} ➔ 3着: {', '.join(map(str, t3))}"
+        # 5. 3連単データフォーメーション
+        t1 = [str(top_1['num']), str(top_2['num'])]
+        t2 = [str(top_1['num']), str(top_2['num']), str(top_3['num'])]
+        t3 = [str(h['num']) for h in [top_1, top_2, top_3, top_4, match_horse] if h['num']]
+        p5_rec = f"1着: {', '.join(dict.fromkeys(t1))} ➔ 2着: {', '.join(dict.fromkeys(t2))} ➔ 3着: {', '.join(dict.fromkeys(t3))}"
 
         return [
             {
                 "id": 1,
-                "badge": "本命・堅実",
+                "badge": "最高適性",
                 "badge_class": "badge-solid",
-                "name": "① 本命・堅実パターン（馬連・ワイド）",
+                "name": "① データ軸・標準推奨（馬連・ワイド）",
                 "type": "馬連・ワイド流し",
                 "recommendation": p1_rec,
-                "description": f"データスコア最上位【{top_1['name']}】を軸に、高適性馬【{top_2['name']}】・【{top_3['name']}】へ流す最も着実な買い目。",
-                "risk": "低リスク / 安定度：高"
+                "description": f"データ適性スコア最上位【{top_1['name']}】を軸に、高適性馬【{top_2['name']}】・【{top_3['name']}】へ流す着実な買い目。",
+                "risk": "データ最高適合 / 安定重視"
             },
             {
                 "id": 2,
-                "badge": "穴馬一発",
+                "badge": "条件ジャスト",
                 "badge_class": "badge-hole",
-                "name": "② 穴馬一発・高配当パターン（ワイド流し）",
+                "name": "② 展開・馬場ジャストフィット（ワイド流し）",
                 "type": "ワイド軸1頭流し",
                 "recommendation": p2_rec,
-                "description": f"高適性でありながらオッズの甘い高配当穴馬【{hole_1['name']}】（単勝{hole_1.get('odds', '??')}倍）を軸に指定した回収率特化パターン。",
-                "risk": "中リスク / 配当重視"
+                "description": f"設定された馬場コンディションと展開シナリオに最も合致する【{match_horse['name']}】を軸に固定した効率重視パターン。",
+                "risk": "展開・馬場適合重視"
             },
             {
                 "id": 3,
-                "badge": "危険馬消し",
+                "badge": "不振枠カット",
                 "badge_class": "badge-danger-cut",
-                "name": "③ 危険人気馬カット・効率パターン（3連複フォーメーション）",
+                "name": "③ 不振データ・リスクカット（3连複フォーメーション）",
                 "type": "3連複フォーメーション",
                 "recommendation": p3_rec,
-                "description": f"大崩れリスクのある危険人気馬（{', '.join(dangerous_names) if dangerous_names else '該当なし'}）を完全にカットし、期待値の高い適性馬のみで構成したスマート買い目。",
-                "risk": "中リスク / 期待値重視"
+                "description": f"コース不振枠やバイアス逆風の馬（{', '.join(dangerous_names) if dangerous_names else 'なし'}）を除外し、高適性馬のみで構成した買い目。",
+                "risk": "低適性データ完全排除"
             },
             {
                 "id": 4,
-                "badge": "展開ハマり",
+                "badge": "データ上位BOX",
                 "badge_class": "badge-pace",
-                "name": "④ 展開ハマり・的中重視パターン（3連複BOX）",
+                "name": "④ データ上位4頭（3連複BOX）",
                 "type": "3連複BOX",
                 "recommendation": p4_rec,
-                "description": f"想定ペース【{pace_analysis.get('pace', '')}】と当日の馬場バイアスに最高適合する上位4頭（{', '.join([h['name'] for h in [top_1, top_2, top_3, top_4]])}）によるBOX買い。",
-                "risk": "低〜中リスク / 中小穴対応"
+                "description": f"純データ適性スコア上位4頭（{', '.join([h['name'] for h in [top_1, top_2, top_3, top_4]])}）による安定性重視のBOX買い。",
+                "risk": "上位適性馬の網羅"
             },
             {
                 "id": 5,
-                "badge": "一撃必殺",
+                "badge": "高適性フォーメーション",
                 "badge_class": "badge-max",
-                "name": "⑤ 一撃必殺・万馬券狙いパターン（3連単フォーメーション）",
+                "name": "⑤ 高適性3連単フォーメーション",
                 "type": "3連単フォーメーション",
                 "recommendation": p5_rec,
-                "description": f"上位2頭を1着固定にし、相手に好適性穴馬【{hole_1['name']}】らを絡めて万馬券・超高配当を狙い撃つフォーメーション。",
-                "risk": "高リスク / 超高配当狙い"
+                "description": f"データ上位馬を1・2着軸に据え、展開適合馬【{match_horse['name']}】まで網羅した高精度フォーメーション。",
+                "risk": "適性重視・高配当狙い"
             }
         ]
 
@@ -325,12 +307,12 @@ class RaceAnalyzer:
             "id": 0, "title": "東京 11R - 毎日王冠 (GII) (東京・芝1800m)",
             "venue": "東京", "r_num": 11, "course": "東京・芝1800m", "condition_type": "古馬・オープン",
             "horses": [
-                {"num": 1, "frame": 1, "name": "セイウンハーデス", "jockey": "幸英明", "odds": 10.2, "style": "先行", "popularity": 4},
-                {"num": 2, "frame": 1, "name": "リアライズシリウス", "jockey": "津村明秀", "odds": 2.7, "style": "差し", "popularity": 1},
-                {"num": 9, "frame": 5, "name": "ドラゴンブースト", "jockey": "丹内祐次", "odds": 29.7, "style": "差し", "popularity": 9},
-                {"num": 10, "frame": 5, "name": "エルトンバローズ", "jockey": "松若風馬", "odds": 25.3, "style": "先行", "popularity": 6},
-                {"num": 13, "frame": 7, "name": "ホウオウビスケッツ", "jockey": "岩田康誠", "odds": 25.5, "style": "先行", "popularity": 7},
-                {"num": 17, "frame": 8, "name": "ダノンエアズロック", "jockey": "田辺裕信", "odds": 28.2, "style": "先行", "popularity": 8},
+                {"num": 1, "frame": 1, "name": "セイウンハーデス", "style": "先行"},
+                {"num": 2, "frame": 1, "name": "リアライズシリウス", "style": "差し"},
+                {"num": 9, "frame": 5, "name": "ドラゴンブースト", "style": "差し"},
+                {"num": 10, "frame": 5, "name": "エルトンバローズ", "style": "先行"},
+                {"num": 13, "frame": 7, "name": "ホウオウビスケッツ", "style": "先行"},
+                {"num": 17, "frame": 8, "name": "ダノンエアズロック", "style": "先行"},
             ]
         }]
 
