@@ -513,3 +513,132 @@ class PciUp3Analyzer:
     )
 
     return res
+
+import re
+import pandas as pd
+
+
+class CourseRotationAnalyzer:
+  """コース・距離適性およびローテーション（休養・馬体重）を解析するクラス"""
+
+  def __init__(self):
+    pass
+
+  def evaluate_horse(
+      self, horse_past_df, current_course, current_distance, real_style='標準'
+  ):
+    """該当馬のコース適性およびローテーションを評価する関数
+
+    Parameters:
+    - horse_past_df (pd.DataFrame): 該当馬の過去走データ
+    - current_course (str): 今回の場名・芝ダ（例: '東京芝', '阪神ダート'）
+    - current_distance (int): 今回の距離（例: 1800, 2400）
+    - real_style (str): 算出済みの真の脚質
+
+    Returns:
+    - dict: 評価結果スコアと表示用データ
+    """
+    res = {
+        'score_adjustment': 0.0,
+        'course_flag': '標準',
+        'rotation_flag': '順調',
+        'comment': '',
+    }
+
+    if horse_past_df is None or horse_past_df.empty:
+      res['comment'] = '過去走データなし'
+      return res
+
+    recent = horse_past_df.head(5)
+    last_race = recent.iloc[0] if len(recent) > 0 else None
+
+    comments = []
+
+    # -------------------------------------------------------------
+    # 軸1: 同コース・同距離での過去実績
+    # -------------------------------------------------------------
+    if (
+        '距離' in horse_past_df.columns
+        and '着順' in horse_past_df.columns
+    ):
+      # 距離データから数値抽出
+      horse_past_df['num_dist'] = (
+          horse_past_df['距離']
+          .astype(str)
+          .str.extract(r'(\d+)')
+          .astype(float)
+      )
+      same_dist_races = horse_past_df[
+          abs(horse_past_df['num_dist'] - current_distance) <= 100
+      ]
+
+      if len(same_dist_races) >= 2:
+        top3 = (
+            same_dist_races['着順']
+            .astype(str)
+            .str.extract(r'(\d+)')
+            .astype(float)
+            <= 3
+        ).sum()
+        dist_rate = top3 / len(same_dist_races)
+
+        if dist_rate >= 0.50:
+          res['score_adjustment'] += 8.0
+          res['course_flag'] = '距離適性〇'
+          comments.append(f'同近接距離で高適性（複勝率 {round(dist_rate*100)}%）')
+
+    # -------------------------------------------------------------
+    # 軸2: 距離変更（短縮 / 延長）の適性チェック
+    # -------------------------------------------------------------
+    if last_race is not None and 'num_dist' in horse_past_df.columns:
+      prev_dist = last_race.get('num_dist', None)
+      if pd.notna(prev_dist) and prev_dist > 0:
+        dist_diff = current_distance - prev_dist
+
+        if dist_diff <= -200:  # 200m以上の距離短縮
+          if real_style in ['逃げ', '先行']:
+            res['score_adjustment'] += 5.0
+            comments.append(
+                f'前走({int(prev_dist)}m)から距離短縮（先行力活きる好条件）'
+            )
+        elif dist_diff >= 300:  # 300m以上の大幅距離延長
+          if real_style in ['追込']:
+            res['score_adjustment'] -= 5.0
+            comments.append(
+                f'前走({int(prev_dist)}m)から大幅距離延長（折り合い・スタミナ懸念）'
+            )
+
+    # -------------------------------------------------------------
+    # 軸3: ローテーション（間隔・馬体重増減）による状態リスク判定
+    # -------------------------------------------------------------
+    if last_race is not None:
+      interval_str = str(last_race.get('間隔', ''))
+      weight_diff_str = str(last_race.get('馬体重増減', ''))
+
+      # 間隔（週数）の抽出
+      interval_match = re.search(r'\d+', interval_str)
+      interval_weeks = (
+          int(interval_match.group()) if interval_match else None
+      )
+
+      # 馬体重増減の抽出
+      weight_match = re.search(r'([+-]?\d+)', weight_diff_str)
+      weight_diff = int(weight_match.group(1)) if weight_match else None
+
+      # 久々（中10週以上）かつ馬体重大幅増（+12kg以上）
+      if (
+          interval_weeks
+          and interval_weeks >= 10
+          and weight_diff
+          and weight_diff >= 12
+      ):
+        res['score_adjustment'] -= 8.0
+        res['rotation_flag'] = '危険（仕上がり途上）'
+        comments.append(
+            f'長期休養明け（中{interval_weeks}週）＋馬体重太め（{weight_diff:+d}kg）で割引'
+        )
+
+    res['comment'] = (
+        ' / '.join(comments) if comments else 'ローテーション・距離適性は順調です。'
+    )
+    return res
