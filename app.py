@@ -351,3 +351,20 @@ def index():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
+
+# --- app.py のメイン計算ロジック内（イメージ） ---
+
+# 1. クラスのインスタンス化
+analyzer = BadTrackAnalyzer()
+
+# 2. 該当馬の「過去データ」「当日の馬場（重・不良等）」「算出済みの真の脚質」を渡して評価
+eval_res = analyzer.evaluate_horse(
+    horse_past_df, current_track_condition, real_style
+)
+
+# 3. 総合適性スコアに加減算を反映
+horse_total_score += eval_res['score_adjustment']
+
+# 4. 画面（UI）表示用のデータにフラグやコメントをセット
+horse_display_data['bad_track_flag'] = eval_res['status_flag']  # 例: '道悪◎', '危険馬'
+horse_display_data['bad_track_comment'] = eval_res['comment']
