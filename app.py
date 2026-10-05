@@ -574,7 +574,7 @@ class PciUp3Analyzer:
 
 
 # ==============================================================================
-# 4. Streamlit メインUI画面 (超シンプル2ステップ検索：日付 ➔ レース選択)
+# 4. Streamlit メインUI画面 (日付選択 ➔ レース選択 超シンプル検索)
 # ==============================================================================
 
 # KUINA タイトルヘッダー
@@ -590,6 +590,74 @@ st.markdown(
 
 # 全自動CSVスキャン実行
 date_races_map, past_data_files = scan_and_load_all_csvs()
+
+# --- 日付別・開催場別 レース名プリセット定義 (土曜/日曜で完全連動) ---
+RACE_NAME_MAP = {
+    "2026-10-03": {
+        "track1_name": "東京",
+        "track2_name": "京都",
+        "track1_races": {
+            1: "1R 2歳未勝利 (ダ1400m)",
+            2: "2R 2歳未勝利 (芝1800m)",
+            3: "3R 2歳未勝利 (芝1400m)",
+            4: "4R 2歳新馬 (ダ1600m)",
+            5: "5R 2歳新馬 (芝1800m)",
+            6: "6R 3歳上1勝クラス (芝2000m)",
+            7: "7R 3歳上1勝クラス (ダ1400m)",
+            8: "8R 3歳上2勝クラス (芝1600m)",
+            9: "9R ヤマボウシ賞 (ダ1400m)",
+            10: "10R 伊勢佐木特別 (ダ2100m)",
+            11: "11R サウジアラビアRC (G3) [芝1600m]",
+            12: "12R 3歳上1勝クラス (芝1400m)",
+        },
+        "track2_races": {
+            1: "1R 2歳未勝利 (ダ1200m)",
+            2: "2R 2歳未勝利 (芝1800m)",
+            3: "3R 2歳未勝利 (ダ1800m)",
+            4: "4R 2歳新馬 (芝1400m)",
+            5: "5R 2歳新馬 (芝2000m)",
+            6: "6R 3歳上1勝クラス (ダ1200m)",
+            7: "7R 3歳上1勝クラス (芝1600m)",
+            8: "8R 3歳上2勝クラス (ダ1800m)",
+            9: "9R 清滝特別 (芝2200m)",
+            10: "10R 大山崎S (ダ1200m)",
+            11: "11R オパールS (L) [芝1200m]",
+            12: "12R 3歳上1勝クラス (芝1400m)",
+        },
+    },
+    "2026-10-04": {
+        "track1_name": "東京",
+        "track2_name": "京都",
+        "track1_races": {
+            1: "1R 2歳未勝利 (芝1400m)",
+            2: "2R 2歳未勝利 (ダ1600m)",
+            3: "3R 2歳未勝利 (芝1800m)",
+            4: "4R 2歳新馬 (ダ1400m)",
+            5: "5R 2歳新馬 (芝1800m)",
+            6: "6R 3歳上1勝クラス (ダ2100m)",
+            7: "7R 3歳上1勝クラス (芝1600m)",
+            8: "8R 3歳上2勝クラス (ダ1400m)",
+            9: "9R 六社S (芝2400m)",
+            10: "10R グリーンチャンネルC (L) [ダ1400m]",
+            11: "11R 毎日王冠 (G2) [芝1800m]",
+            12: "12R 3歳上1勝クラス (芝1600m)",
+        },
+        "track2_races": {
+            1: "1R 2歳未勝利 (ダ1200m)",
+            2: "2R 2歳未勝利 (芝1600m)",
+            3: "3R 2歳未勝利 (ダ1800m)",
+            4: "4R 2歳新馬 (芝2000m)",
+            5: "5R 2歳新馬 (ダ1400m)",
+            6: "6R 3歳上1勝クラス (芝1200m)",
+            7: "7R 3歳上1勝クラス (ダ1800m)",
+            8: "8R 3歳上2勝クラス (芝1600m)",
+            9: "9R 大ツツジ賞 (芝2000m)",
+            10: "10R 夕刊フジ杯 (ダ1200m)",
+            11: "11R 京都大賞典 (G2) [芝2400m]",
+            12: "12R 3歳上2勝クラス (ダ1200m)",
+        },
+    },
+}
 
 # --- 超シンプル 2ステップ検索エリア ---
 st.markdown("##### 🔍 レース検索")
@@ -618,72 +686,47 @@ with col_search_date:
 
 date_key = selected_date.strftime("%Y-%m-%d")
 
-# 各開催場のレース定義プリセット
-RACE_PRESETS_TRACK1 = {
-    1: "1R 2歳未勝利 (芝1400m)",
-    2: "2R 2歳未勝利 (ダ1600m)",
-    3: "3R 2歳未勝利 (芝1800m)",
-    4: "4R 2歳新馬 (ダ1400m)",
-    5: "5R 2歳新馬 (芝1800m)",
-    6: "6R 3歳上1勝クラス (ダ2100m)",
-    7: "7R 3歳上1勝クラス (芝1600m)",
-    8: "8R 3歳上2勝クラス (ダ1400m)",
-    9: "9R 六社ステークス (芝2400m)",
-    10: "10R グリーンチャンネルC (ダ1400m)",
-    11: "11R 毎日王冠 (G2) [芝1800m]",
-    12: "12R 3歳上1勝クラス (芝1600m)",
-}
+# 選択日付に応じた動的レース情報取得 (東京・京都に正しく設定)
+d_info = RACE_NAME_MAP.get(date_key, {})
+t1_name = d_info.get("track1_name", "東京")
+t2_name = d_info.get("track2_name", "京都")
+t1_races = d_info.get("track1_races", {})
+t2_races = d_info.get("track2_races", {})
 
-RACE_PRESETS_TRACK2 = {
-    1: "1R 2歳未勝利 (ダ1200m)",
-    2: "2R 2歳未勝利 (芝1600m)",
-    3: "3R 2歳未勝利 (ダ1800m)",
-    4: "4R 2歳新馬 (芝2000m)",
-    5: "5R 2歳新馬 (ダ1400m)",
-    6: "6R 3歳上1勝クラス (芝1200m)",
-    7: "7R 3歳上1勝クラス (ダ1800m)",
-    8: "8R 3歳上2勝クラス (芝1600m)",
-    9: "9R 大ツツジ賞 (芝2000m)",
-    10: "10R 夕刊フジ杯 (ダ1200m)",
-    11: "11R 京都大賞典 (G2) [芝2400m]",
-    12: "12R 3歳上2勝クラス (ダ1200m)",
-}
-
-# レース選択リストの動的生成 (例: 東京1R 2歳未勝利 / 阪神11R 毎日王冠G2)
 race_options_formatted = []
 
 if date_key in date_races_map:
   races_for_date = date_races_map[date_key]
   for idx, r in enumerate(races_for_date):
     if idx < 12:
-      track_name = "東京"
-      r_num = idx + 1
-      info = RACE_PRESETS_TRACK1.get(r_num, f"{r_num}R")
+      tname = t1_name
+      rnum = idx + 1
+      rinfo = t1_races.get(rnum, f"{rnum}R レース")
     else:
-      track_name = "阪神"
-      r_num = (idx - 12) + 1
-      info = RACE_PRESETS_TRACK2.get(r_num, f"{r_num}R")
+      tname = t2_name
+      rnum = (idx - 12) + 1
+      rinfo = t2_races.get(rnum, f"{rnum}R レース")
 
-    label = f"🏇 {track_name} {info} ({len(r)}頭立)"
-    race_options_formatted.append((idx, track_name, r_num, label))
+    label = f"🏇 {tname} {rinfo} ({len(r)}頭立)"
+    race_options_formatted.append((idx, label))
 else:
   races_for_date = []
   race_options_formatted = [
-      (0, "東京", 11, "🏇 東京 11R 毎日王冠 (G2) [芝1800m] (15頭立) デモ"),
-      (1, "阪神", 11, "🏇 阪神 11R 京都大賞典 (G2) [芝2400m] (14頭立) デモ"),
+      (0, "🏇 東京 11R 毎日王冠 (G2) [芝1800m] (15頭立) デモ"),
+      (1, "🏇 京都 11R 京都大賞典 (G2) [芝2400m] (14頭立) デモ"),
   ]
 
-# 2. レース選択（直感的に1つのプルダウンで「東京1R」「東京11R 毎日王冠」などを即選択！）
+# 2. レース選択（1つのプルダウンで「東京11R サウジアラビアRC」「京都11R オパールS」などを即選択！）
 with col_search_race:
   selected_race_combo_idx = st.selectbox(
       "🏇 レースを選択 (競馬場・R番号・レース名)",
       range(len(race_options_formatted)),
-      format_func=lambda x: race_options_formatted[x][3],
+      format_func=lambda x: race_options_formatted[x][1],
   )
 
-selected_race_idx, track_name_curr, race_num_curr, display_label = (
-    race_options_formatted[selected_race_combo_idx]
-)
+selected_race_idx, display_label = race_options_formatted[
+    selected_race_combo_idx
+]
 
 # 出走馬リスト確定
 if races_for_date and selected_race_idx < len(races_for_date):
@@ -705,7 +748,6 @@ else:
       for i in range(15)
   ]
 
-# レースタイトルの自動生成
 clean_race_title = display_label.replace("🏇 ", "")
 
 # 選択中レース案内バナー
@@ -950,7 +992,7 @@ with tab_pace:
       "逃げ馬不在により超スローペースの上がり・瞬発力勝負が濃厚です。"
       if escape_count == 0
       else (
-          f"単騎逃げ（{style_groups['逃げ'][0]['name']}）によりマイペースな展開が予想されます。"
+          f"単騎逃げ（{style_groups['逃げ']['name']}）によりマイペースな展開が予想されます。"
           if escape_count == 1
           else f"逃げ馬{escape_count}頭（{', '.join([h['name'] for h in style_groups['逃げ']])}）の競り合いによりハイペース・先行激化が予想されます。"
       )
@@ -1015,9 +1057,9 @@ with tab_pace:
 with tab_tickets:
   st.subheader(f"🎯 【{clean_race_title}】 AI推奨 馬券買い目")
 
-  honmei = ranked_horses[0] if len(ranked_horses) > 0 else None
-  taikou = ranked_horses[1] if len(ranked_horses) > 1 else None
-  tanana = ranked_horses[2] if len(ranked_horses) > 2 else None
+  honmei = ranked_horses if len(ranked_horses) > 0 else None
+  taikou = ranked_horses if len(ranked_horses) > 1 else None
+  tanana = ranked_horses if len(ranked_horses) > 2 else None
   renka = ranked_horses[3:6] if len(ranked_horses) >= 6 else ranked_horses[3:]
 
   if honmei and taikou:
@@ -1250,7 +1292,7 @@ with tab_sim:
                 ),
             })
 
-          elif plan == "3連単 1・2着固定フォーメーション":
+          elif plan == "3连単 1・2着固定フォーメーション":
             pts = 12
             per_pt = math.floor((budget_per_plan / pts) / 100) * 100
             tot_alloc = per_pt * pts
