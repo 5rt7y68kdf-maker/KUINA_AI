@@ -215,7 +215,7 @@ def scan_and_load_all_csvs():
             umaban = (
                 parts[2].strip()
                 if len(parts) > 2 and parts[2].strip()
-                else parts[1].strip()
+                else parts[0].strip()
             )
             horse_name = parts[7].strip() if len(parts) > 7 else "不明馬"
 
@@ -852,6 +852,12 @@ ranked_horses = sorted(
     processed_horses, key=lambda x: x["total_score"], reverse=True
 )
 
+# AI予想印・軸馬抽出 (配列インデックス参照を修正)
+honmei = ranked_horses[0] if len(ranked_horses) > 0 else None
+taikou = ranked_horses[1] if len(ranked_horses) > 1 else None
+tanana = ranked_horses[2] if len(ranked_horses) > 2 else None
+renka = ranked_horses[3:6] if len(ranked_horses) >= 6 else ranked_horses[3:]
+
 
 # ==============================================================================
 # 5. タブ別コンテンツ表示
@@ -992,7 +998,7 @@ with tab_pace:
       "逃げ馬不在により超スローペースの上がり・瞬発力勝負が濃厚です。"
       if escape_count == 0
       else (
-          f"単騎逃げ（{style_groups['逃げ']['name']}）によりマイペースな展開が予想されます。"
+          f"単騎逃げ（{style_groups['逃げ'][0]['name']}）によりマイペースな展開が予想されます。"
           if escape_count == 1
           else f"逃げ馬{escape_count}頭（{', '.join([h['name'] for h in style_groups['逃げ']])}）の競り合いによりハイペース・先行激化が予想されます。"
       )
@@ -1056,11 +1062,6 @@ with tab_pace:
 # ------------------------------------------------------------------------------
 with tab_tickets:
   st.subheader(f"🎯 【{clean_race_title}】 AI推奨 馬券買い目")
-
-  honmei = ranked_horses if len(ranked_horses) > 0 else None
-  taikou = ranked_horses if len(ranked_horses) > 1 else None
-  tanana = ranked_horses if len(ranked_horses) > 2 else None
-  renka = ranked_horses[3:6] if len(ranked_horses) >= 6 else ranked_horses[3:]
 
   if honmei and taikou:
     st.markdown("##### 🏷️ AI予想印")
@@ -1292,7 +1293,7 @@ with tab_sim:
                 ),
             })
 
-          elif plan == "3连単 1・2着固定フォーメーション":
+          elif plan == "3連単 1・2着固定フォーメーション":
             pts = 12
             per_pt = math.floor((budget_per_plan / pts) / 100) * 100
             tot_alloc = per_pt * pts
