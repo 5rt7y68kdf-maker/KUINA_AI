@@ -11,7 +11,7 @@ import streamlit as st
 # 1. ページ基本設定 ＆ スタイリッシュ＆スマホ最適化CSS
 # ==============================================================================
 st.set_page_config(
-    page_title="KUINA | AI Racing Analytics",
+    page_title="KUINA | AI Racing Intelligence",
     page_icon="💎",
     layout="wide",
 )
@@ -63,7 +63,7 @@ st.markdown(
         box-shadow: 0 2px 6px rgba(0,0,0,0.03);
     }
     .race-banner-title {
-        font-size: 18px;
+        font-size: 20px;
         font-weight: 800;
         color: #1e1b4b;
     }
@@ -159,7 +159,7 @@ st.markdown(
             padding: 14px 16px;
         }
         .race-banner-title {
-            font-size: 16px;
+            font-size: 17px;
         }
         .horse-card {
             padding: 14px;
@@ -212,8 +212,8 @@ def scan_and_load_all_csvs():
           parts = l.split(",")
           if len(parts) >= 8:
             waku = parts[0].strip()
-            umaban = parts[2].strip()
-            horse_name = parts[7].strip()
+            umaban = parts[1].strip()
+            horse_name = parts[2].strip()
 
             if umaban in ["1", "01"] and len(current_race) > 0:
               races.append(current_race)
@@ -223,13 +223,13 @@ def scan_and_load_all_csvs():
                 "枠番": int(waku) if waku.isdigit() else 1,
                 "馬番": int(umaban) if umaban.isdigit() else len(current_race) + 1,
                 "馬名": horse_name,
-                "騎手": parts[12].strip() if len(parts) > 13 else "未定",
+                "騎手": parts[13].strip() if len(parts) > 13 else "未定",
                 "単勝オッズ": (
-                    parts[15].strip() if len(parts) > 16 else "10.0"
+                    parts[16].strip() if len(parts) > 16 else "10.0"
                 ),
                 "性別": parts[9].strip() if len(parts) > 9 else "牡",
                 "年齢": parts[10].strip() if len(parts) > 10 else "3",
-                "斤量": parts[13].strip() if len(parts) > 14 else "56",
+                "斤量": parts[14].strip() if len(parts) > 14 else "56",
             })
 
         if current_race:
@@ -584,12 +584,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 全自動CSVスキャン実行 (※ステータス表示カードは削除済み)
+# 全自動CSVスキャン実行
 date_races_map, past_data_files = scan_and_load_all_csvs()
 
 # --- 日付＆レース選択エリア ---
-st.markdown("##### 📅 検索レース指定")
-col_date, col_race = st.columns([1.2, 2.8])
+st.markdown("##### 📅 検索レース指定・レース名詳細設定")
+col_date, col_race, col_course = st.columns([1.2, 1.8, 1.5])
 
 available_dates = sorted(list(date_races_map.keys())) if date_races_map else []
 
@@ -597,7 +597,7 @@ default_date = (
     datetime.date(2026, 10, 4)
     if "2026-10-04" in available_dates
     else (
-        datetime.datetime.strptime(available_dates, "%Y-%m-%d").date()
+        datetime.datetime.strptime(available_dates[-1], "%Y-%m-%d").date()
         if available_dates
         else datetime.date(2026, 10, 4)
     )
@@ -613,20 +613,55 @@ with col_date:
 
 date_key = selected_date.strftime("%Y-%m-%d")
 
+# レース番号別・デフォルトレース名プリセット
+RACE_PRESETS = {
+    1: "第1レース 2歳未勝利",
+    2: "第2レース 2歳未勝利",
+    3: "第3レース 2歳未勝利",
+    4: "第4レース 2歳新馬",
+    5: "第5レース 2歳新馬",
+    6: "第6レース 3歳以上1勝クラス",
+    7: "第7レース 3歳以上1勝クラス",
+    8: "第8レース 3歳以上2勝クラス",
+    9: "第9レース 3歳以上2勝クラス (特別)",
+    10: "第10レース 3歳以上3勝クラス (メイン前)",
+    11: "第11レース 毎日王冠 (G2) / メインレース",
+    12: "第12レース 3歳以上1勝クラス (最終)",
+}
+
 if date_key in date_races_map:
   races_for_date = date_races_map[date_key]
   race_options = [
-      f"第{i+1}レース ({len(r)}頭立)" for i, r in enumerate(races_for_date)
+      f"第{i+1}R ({len(r)}頭立) - {RACE_PRESETS.get(i+1, f'第{i+1}レース')}"
+      for i, r in enumerate(races_for_date)
   ]
 else:
   races_for_date = []
-  race_options = ["デモ特別レース (15頭立)"]
+  race_options = ["第11R (15頭立) - 毎日王冠 (G2) デモ"]
 
 with col_race:
   selected_race_idx = st.selectbox(
       "対象レースを選択",
       range(len(race_options)),
       format_func=lambda x: race_options[x],
+  )
+
+default_race_name = (
+    RACE_PRESETS.get(selected_race_idx + 1, f"第{selected_race_idx+1}レース")
+    if races_for_date
+    else "毎日王冠 (G2)"
+)
+
+# レース名とコース情報の詳細カスタマイズ入力
+col_rname, col_cdist = st.columns([2.5, 2.0])
+with col_rname:
+  custom_race_name = st.text_input(
+      "✏️ レース名（表示用カスタマイズ）", value=default_race_name
+  )
+
+with col_cdist:
+  custom_course_info = st.text_input(
+      "🏁 競馬場・コース情報", value="東京 芝1800m (Aコース)"
   )
 
 if not races_for_date:
@@ -638,9 +673,7 @@ if not races_for_date:
 # 出走馬リスト確定
 if races_for_date:
   current_race_horses = races_for_date[selected_race_idx]
-  selected_race_title = race_options[selected_race_idx]
 else:
-  selected_race_title = "デモ特別レース (15頭立)"
   current_race_horses = [
       {
           "枠番": (i % 8) + 1,
@@ -657,15 +690,15 @@ else:
       for i in range(15)
   ]
 
-# 選択中レース案内バナー
+# 選択中レース案内バナー (レース名を強調表示)
 st.markdown(
     f"""
 <div class="race-banner">
     <div class="race-banner-title">
-        🔍 対象レース: {date_key} {selected_race_title}
+        🔍 分析対象: {date_key} 【 {custom_race_name} 】
     </div>
     <div class="race-banner-sub">
-        出走頭数: <b>{len(current_race_horses)}頭 AI完全解析</b> ｜ コース想定: <b>東京芝1800m / 阪神ダ1400m 等</b>
+        出走頭数: <b>{len(current_race_horses)}頭 AI完全解析</b> ｜ コース設定: <b>{custom_course_info}</b>
     </div>
 </div>
 """,
@@ -775,7 +808,9 @@ tab_rank, tab_pace, tab_tickets, tab_sim = st.tabs([
 # タブ1: 総合スコアランキング
 # ------------------------------------------------------------------------------
 with tab_rank:
-  st.subheader(f"🏆 KUINA AI分析スコア (全{len(ranked_horses)}頭)")
+  st.subheader(
+      f"🏆 【{custom_race_name}】 KUINA AI分析スコア (全{len(ranked_horses)}頭)"
+  )
 
   sub_tab1, sub_tab2 = st.tabs(["🎴 多角分析カード", "📊 一覧テーブル"])
 
@@ -888,7 +923,7 @@ with tab_rank:
 # タブ2: 展開予想・隊列マップ
 # ------------------------------------------------------------------------------
 with tab_pace:
-  st.subheader("🏇 展開予想・推定隊列マップ")
+  st.subheader(f"🏇 【{custom_race_name}】 展開予想・推定隊列マップ")
 
   style_groups = {"逃げ": [], "先行": [], "差し": [], "追込": []}
   for h in processed_horses:
@@ -962,7 +997,7 @@ with tab_pace:
 # タブ3: AIおすすめ馬券
 # ------------------------------------------------------------------------------
 with tab_tickets:
-  st.subheader("🎯 AI推奨 馬券買い目フォーメーション")
+  st.subheader(f"🎯 【{custom_race_name}】 AI推奨 馬券買い目フォーメーション")
 
   honmei = ranked_horses[0] if len(ranked_horses) > 0 else None
   taikou = ranked_horses[1] if len(ranked_horses) > 1 else None
@@ -1099,7 +1134,9 @@ with tab_tickets:
 # タブ4: 馬券資金ポートフォリオ・シミュレーター
 # ------------------------------------------------------------------------------
 with tab_sim:
-  st.subheader("💰 馬券資金ポートフォリオ・シミュレーター")
+  st.subheader(
+      f"💰 【{custom_race_name}】 馬券資金ポートフォリオ・シミュレーター"
+  )
 
   col_s1, col_s2 = st.columns([1.5, 2.5])
 
