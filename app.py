@@ -642,3 +642,190 @@ class CourseRotationAnalyzer:
         ' / '.join(comments) if comments else 'ローテーション・距離適性は順調です。'
     )
     return res
+
+import pandas as pd
+import streamlit as st
+
+# ページ基本設定
+st.set_page_config(
+    page_title="競馬AI純データ予想分析", page_icon="🐎", layout="wide"
+)
+
+# タイトルヘッダー
+st.title("🐎 競馬AI 純データ展開・適性分析ダッシュボード")
+st.caption(
+    "オッズ・人気に頼らない「枠順バイアス×真の脚質×馬場適性×ペースチェンジ」総合スコアモデル"
+)
+
+# -------------------------------------------------------------
+# 1. サイドバー：レース条件設定
+# -------------------------------------------------------------
+with st.sidebar:
+  st.header("⚙️ レース条件設定")
+
+  current_course = st.selectbox(
+      "コース場名・芝ダ",
+      ["東京芝", "中山芝", "阪神芝", "京都芝", "東京ダート", "阪神ダート"],
+  )
+  current_distance = st.number_input(
+      "距離 (m)", min_value=1000, max_value=3600, value=1800, step=100
+  )
+  current_track_condition = st.select_slider(
+      "当日の馬場状態", options=["良", "稍重", "重", "不良"]
+  )
+  expected_pace = st.radio(
+      "想定レースペース",
+      ["スローペース", "ミドルペース", "ハイペース"],
+      index=1,
+      horizontal=True,
+  )
+
+  st.divider()
+  st.info("💡 過去走データと枠順データからスコアを自動計算します。")
+
+# -------------------------------------------------------------
+# 2. メインコンテンツ：分析実行＆スコア算出（サンプルデータの統合例）
+# -------------------------------------------------------------
+# 各分析エンジンのインスタンス化
+bad_analyzer = BadTrackAnalyzer()
+pci_analyzer = PciUp3Analyzer()
+rotation_analyzer = CourseRotationAnalyzer()
+
+# ※以下は各馬の計算結果を格納するイメージループです
+# (実運用では出馬表CSVからループ処理)
+processed_horses = []
+
+# （サンプルデータ用データ構造）
+sample_horses = [
+    {"num": 1, "name": "アークライト", "past_df": None},
+    {"num": 2, "name": "ディアファザー", "past_df": None},
+    {"num": 3, "name": "サードアイ", "past_df": None},
+]
+
+for horse in sample_horses:
+  # 1. 真の脚質算出
+  real_style = calculate_real_running_style(horse["past_df"]) or "先行"
+
+  # 2. 各エンジンの評価実行
+  bad_res = bad_analyzer.evaluate_horse(
+      horse["past_df"], current_track_condition, real_style
+  )
+  pci_res = pci_analyzer.evaluate_horse(horse["past_df"], expected_pace)
+  rot_res = rotation_analyzer.evaluate_horse(
+      horse["past_df"], current_course, current_distance, real_style
+  )
+
+  # 3. 総合スコアの合計（ベース100pt + 各補正値）
+  base_score = 70.0
+  total_score = (
+      base_score
+      + bad_res["score_adjustment"]
+      + pci_res["score_adjustment"]
+      + rot_res["score_adjustment"]
+  )
+
+  # コメントの集約
+  all_comments = [
+      c
+      for c in [bad_res["comment"], pci_res["comment"], rot_res["comment"]]
+      if c and "標準" not in c and "なし" not in c
+  ]
+
+  processed_horses.append({
+      "num": horse["num"],
+      "name": horse["name"],
+      "total_score": round(total_score, 1),
+      "real_style": real_style,
+      "bad_flag": bad_res["status_flag"],
+      "pci_flag": pci_res["pci_flag"],
+      "up3_flag": pci_res["up3_flag"],
+      "rot_flag": rot_res["rotation_flag"],
+      "comments": all_comments,
+  })
+
+# スコア順にソート（ランキング化）
+ranked_horses = sorted(
+    processed_horses, key=lambda x: x["total_score"], reverse=True
+)
+
+# -------------------------------------------------------------
+# 3. UI表示：上位推奨馬ランキング＆詳細カード表示
+# -------------------------------------------------------------
+st.subheader("🏆 総合適性スコア ランキング")
+
+# タブ切り替え（一覧表示 / 詳細カード表示）
+tab1, tab2 = st.tabs(["📊 スコア一覧表", "🎴 出走馬詳細分析カード"])
+
+with tab1:
+  # ランキングサマリーテーブル
+  df_display = pd.DataFrame(ranked_horses)[
+      ["num", "name", "total_score", "real_style", "bad_flag", "pci_flag"]
+  ]
+  df_display.columns = [
+      "馬番",
+      "馬名",
+      "総合適性スコア",
+      "推定脚質",
+      "道悪適性",
+      "ペース耐性",
+  ]
+  st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+with tab2:
+  # カード型詳細UIレイアウト
+  for rank, horse in enumerate(ranked_horses, start=1):
+    # クラウン（1〜3位）の装飾
+    crown = (
+        "🥇"
+        if rank == 1
+        else ("🥈" if rank == 2 else ("🥉" if rank == 3 else f"#{rank}"))
+    )
+
+    with st.container(border=True):
+      col1, col2, col3 = st.columns([1.5, 3.5, 2])
+
+      with col1:
+        st.markdown(f"### {crown} {horse['name']}")
+        st.caption(f"馬番: {horse['num']}番 | 真の脚質: **{horse['real_style']}**")
+
+      with col2:
+        # タグ・バッジ装飾表示
+        tags_html = ""
+        if horse["bad_flag"] == "道悪◎":
+          tags_html += (
+              '<span style="background-color:#28a745; color:white;'
+              ' padding:3px 8px; border-radius:5px; margin-right:5px;">道悪◎</span>'
+          )
+        elif horse["bad_flag"] == "危険馬":
+          tags_html += (
+              '<span style="background-color:#dc3545; color:white;'
+              ' padding:3px 8px; border-radius:5px;'
+              ' margin-right:5px;">危険馬（重ババ）</span>'
+          )
+
+        if horse["up3_flag"] == "キレ味抜群":
+          tags_html += (
+              '<span style="background-color:#17a2b8; color:white;'
+              ' padding:3px 8px; border-radius:5px;'
+              ' margin-right:5px;">キレ味抜群</span>'
+          )
+
+        if horse["pci_flag"] == "ハイペース耐性〇":
+          tags_html += (
+              '<span style="background-color:#fd7e14; color:white;'
+              ' padding:3px 8px; border-radius:5px;'
+              ' margin-right:5px;">ハイペース耐性〇</span>'
+          )
+
+        st.markdown(tags_html, unsafe_allow_html=True)
+
+        # 分析評価コメント
+        if horse["comments"]:
+          for c in horse["comments"]:
+            st.text(f"• {c}")
+        else:
+          st.caption("目立ったマイナス要素・突出した加点要素なし（標準）")
+
+      with col3:
+        # 総合スコア表示
+        st.metric(label="総合適性スコア", value=f"{horse['total_score']} pt")
