@@ -36,7 +36,7 @@ st.markdown(
 def calculate_real_running_style(horse_past_df):
   """過去走データの通過1（1角通過順位）の加重平均から真の脚質を判定"""
   if horse_past_df is None or horse_past_df.empty:
-    return "先行"  # デフォルト値
+    return "先行"
 
   recent_races = horse_past_df.head(4)
   weighted_positions = []
@@ -113,14 +113,14 @@ class BadTrackAnalyzer:
           ranks = (
               bad_races["着順"]
               .astype(str)
-              .str.extract(r"(\d+)")
+              .str.extract(r"(\d+)", expand=False)
               .astype(float)
           )
-          top3_count = (ranks <= 3).sum()
+          top3_count = int((ranks <= 3).sum())
           place_rate = top3_count / total_bad
           res["stats"] = {
               "total": total_bad,
-              "top3": int(top3_count),
+              "top3": top3_count,
               "rate": round(place_rate * 100, 1),
           }
 
@@ -240,7 +240,7 @@ class PciUp3Analyzer:
     return res
 
 
-# 【エンジン4】コース適性・距離変更・ローテーション解析
+# 【エンジン4】コース適性・距離変更・ローテーション解析（※エラー箇所修正済み）
 class CourseRotationAnalyzer:
 
   def evaluate_horse(
@@ -256,23 +256,28 @@ class CourseRotationAnalyzer:
       return res
 
     comments = []
-    last_race = horse_past_df.iloc if len(horse_past_df) > 0 else None
+    df_work = horse_past_df.copy()
+    last_race = df_work.iloc if len(df_work) > 0 else None
 
     # 同近接距離実績
-    if "距離" in horse_past_df.columns and "着順" in horse_past_df.columns:
-      horse_past_df["num_dist"] = (
-          horse_past_df["距離"]
+    if "距離" in df_work.columns and "着順" in df_work.columns:
+      df_work["num_dist"] = (
+          df_work["距離"]
           .astype(str)
-          .str.extract(r"(\d+)")
+          .str.extract(r"(\d+)", expand=False)
           .astype(float)
       )
-      same_dist = horse_past_df[
-          abs(horse_past_df["num_dist"] - current_distance) <= 100
-      ]
+      same_dist = df_work[abs(df_work["num_dist"] - current_distance) <= 100]
       if len(same_dist) >= 2:
-        top3 = (
-            same_dist["着順"].astype(str).str.extract(r"(\d+)").astype(float) <= 3
-        ).sum()
+        top3 = int(
+            (
+                same_dist["着順"]
+                .astype(str)
+                .str.extract(r"(\d+)", expand=False)
+                .astype(float)
+                <= 3
+            ).sum()
+        )
         rate = top3 / len(same_dist)
         if rate >= 0.50:
           res["score_adjustment"] += 8.0
@@ -343,7 +348,7 @@ bad_analyzer = BadTrackAnalyzer()
 pci_analyzer = PciUp3Analyzer()
 rotation_analyzer = CourseRotationAnalyzer()
 
-# --- デモ用出走馬データ（※修正済み） ---
+# --- デモ用出走馬データ ---
 demo_horses = [
     {
         "num": 1,
