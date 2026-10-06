@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 
 # ==============================================================================
-# 1. ページ基本設定 ＆ スタイリッシュ＆スマホ最適化CSS (現状デザイン完全維持)
+# 1. ページ基本設定 ＆ スタイリッシュ＆スマホ最適化CSS
 # ==============================================================================
 st.set_page_config(
     page_title="KUINA | AI Racing Intelligence",
@@ -19,13 +19,10 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* 全体背景：洗練されたモダンライトトーン */
     .stApp {
         background-color: #f8fafc;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
-
-    /* KUINA メインヘッダーカード */
     .kuina-header {
         background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
         color: #ffffff;
@@ -51,8 +48,6 @@ st.markdown(
         font-weight: 500;
         letter-spacing: 0.2px;
     }
-
-    /* レース選択バナー */
     .race-banner {
         background: #ffffff;
         border: 1px solid #e2e8f0;
@@ -72,8 +67,6 @@ st.markdown(
         color: #64748b;
         margin-top: 4px;
     }
-
-    /* 分析カード (HTML/Flexbox超高速軽量化) */
     .horse-card {
         background-color: #ffffff;
         border-radius: 16px;
@@ -86,13 +79,9 @@ st.markdown(
     .horse-card:hover {
         box-shadow: 0 8px 20px rgba(0,0,0,0.06);
     }
-
-    /* サイドバー完全非表示 */
     section[data-testid="stSidebar"] {
         display: none;
     }
-
-    /* 脚質ピルタグ */
     .horse-pill {
         display: inline-block;
         background-color: #f1f5f9;
@@ -104,8 +93,6 @@ st.markdown(
         font-size: 12px;
         font-weight: 700;
     }
-
-    /* おすすめ馬券カード */
     .ticket-card {
         background: #ffffff;
         border: 1.5px solid #e2e8f0;
@@ -121,15 +108,11 @@ st.markdown(
         color: #1e1b4b;
         margin-bottom: 10px;
     }
-
-    /* スコア表示 */
     .score-badge {
         font-size: 26px;
         font-weight: 900;
         color: #4f46e5;
     }
-
-    /* 分析テキスト */
     .analysis-label {
         font-weight: 800;
         color: #0f172a;
@@ -142,49 +125,27 @@ st.markdown(
         margin-bottom: 6px;
         line-height: 1.5;
     }
-
-    /* スマホ画面表示最適化 (レスポンシブCSS) */
     @media (max-width: 768px) {
-        .kuina-header {
-            padding: 18px 20px;
-            border-radius: 14px;
-        }
-        .kuina-header h1 {
-            font-size: 22px;
-        }
-        .kuina-header p {
-            font-size: 12px;
-        }
-        .race-banner {
-            padding: 14px 16px;
-        }
-        .race-banner-title {
-            font-size: 17px;
-        }
-        .horse-card {
-            padding: 14px;
-            margin-bottom: 12px;
-        }
-        .score-badge {
-            font-size: 22px;
-            text-align: left;
-            margin-top: 8px;
-        }
+        .kuina-header { padding: 18px 20px; border-radius: 14px; }
+        .kuina-header h1 { font-size: 22px; }
+        .kuina-header p { font-size: 12px; }
+        .race-banner { padding: 14px 16px; }
+        .race-banner-title { font-size: 17px; }
+        .horse-card { padding: 14px; margin-bottom: 12px; }
+        .score-badge { font-size: 22px; text-align: left; margin-top: 8px; }
     }
     </style>
 """,
     unsafe_allow_html=True,
 )
 
-
 # ==============================================================================
-# 2. 高速化エンジン: @st.cache_resource によるゼロオーバーヘッド読み込み
+# 2. 高速化エンジン
 # ==============================================================================
 def get_jra_waku(umaban, total_horses):
-    """頭数に応じたJRA標準枠番算出アルゴリズム"""
     if total_horses <= 8:
         return umaban
-    capacities = [2] * 8
+    capacities = [1] * 8
     extras = total_horses - 8
     for i in range(7, -1, -1):
         if extras > 0:
@@ -198,24 +159,19 @@ def get_jra_waku(umaban, total_horses):
     return 8
 
 
-@st.cache_resource(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def scan_and_load_all_csvs():
-    """メモリ直保持(@st.cache_resource)による超爆速CSVロードエンジン"""
-    search_paths = [
-        "./*.csv",
-        "./*.CSV",
-        "./data/*.csv",
-        "./data/*.CSV",
-        "/workspace/knowledge/*.csv",
-        "/workspace/knowledge/*.CSV",
-    ]
+    raw_files = glob.glob("./**/*.csv", recursive=True) + glob.glob("./**/*.CSV", recursive=True)
+    raw_files += glob.glob("/workspace/knowledge/*.csv") + glob.glob("/workspace/knowledge/*.CSV")
+    
     all_csv_files = []
-    for p in search_paths:
-        all_csv_files.extend(glob.glob(p))
+    for f in raw_files:
+        normalized = os.path.normpath(f)
+        if ".venv" in normalized or ".git" in normalized or "__pycache__" in normalized:
+            continue
+        all_csv_files.append(f)
+    
     all_csv_files = sorted(list(set(all_csv_files)))
-
-    if not all_csv_files:
-        all_csv_files = glob.glob("./*.csv") + glob.glob("./*.CSV")
 
     date_races_map = {}
 
@@ -318,11 +274,7 @@ def scan_and_load_all_csvs():
     return date_races_map
 
 
-# ==============================================================================
-# 3. 超爆速AI分析エンジン (DataFrame生成を全排出し辞書直演算で約100倍高速化)
-# ==============================================================================
 def analyze_horse_fast(horse_name, umaban, waku, current_track_condition, weather, track_bias, expected_pace):
-    """DataFrame生成や.iterrows()を一切排除したマイクロ秒演算処理"""
     h = abs(hash(horse_name)) % 100
     styles = ["逃げ", "先行", "差し", "追込"]
     real_style = styles[h % 4]
@@ -423,10 +375,8 @@ def analyze_horse_fast(horse_name, umaban, waku, current_track_condition, weathe
 
 
 # ==============================================================================
-# 4. Streamlit メインUI画面 (日付選択 ➔ レース選択 超シンプル検索)
+# 4. メイン画面
 # ==============================================================================
-
-# KUINA タイトルヘッダー
 st.markdown(
     """
 <div class="kuina-header">
@@ -437,10 +387,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 全自動CSVスキャン実行 (爆速化エンジン)
 date_races_map = scan_and_load_all_csvs()
 
-# --- 超シンプル 2ステップ検索エリア ---
 st.markdown("##### 🔍 レース検索")
 col_search_date, col_search_race = st.columns([1.2, 2.8])
 
@@ -456,7 +404,6 @@ default_date = (
     )
 )
 
-# 1. カレンダー日付選択
 with col_search_date:
     selected_date = st.date_input(
         "📅 日付選択",
@@ -466,8 +413,6 @@ with col_search_date:
     )
 
 date_key = selected_date.strftime("%Y-%m-%d")
-
-# 選択日付に対応するCSVから正確なレース情報を取得
 races_for_date = date_races_map.get(date_key, [])
 
 race_options = []
@@ -500,7 +445,6 @@ else:
         {"idx": 1, "label": "🏇 京都 11R 京都大賞G2 [芝2400m] (18頭立) デモ", "data": demo_r2},
     ]
 
-# 2. レース選択（正確なレース名・コース・距離・頭数が表示される1つのプルダウン）
 with col_search_race:
     selected_race_combo_idx = st.selectbox(
         "🏇 レースを選択 (競馬場・R番号・条件・コース・距離)",
@@ -511,7 +455,6 @@ with col_search_race:
 selected_race_obj = race_options[selected_race_combo_idx]["data"]
 display_label = race_options[selected_race_combo_idx]["label"]
 
-# 出走馬リスト＆レースタイトル決定
 if selected_race_obj and "horses" in selected_race_obj and selected_race_obj["horses"]:
     current_race_horses = selected_race_obj["horses"]
 else:
@@ -533,7 +476,6 @@ else:
 
 clean_race_title = display_label.replace("🏇 ", "")
 
-# 選択中レース案内バナー
 st.markdown(
     f"""
 <div class="race-banner">
@@ -548,7 +490,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- レース環境・馬場バイアス設定パネル ---
 st.markdown("##### ⚙️ コンディション・バイアス設定")
 col_env1, col_env2, col_env3, col_env4 = st.columns(4)
 
@@ -582,7 +523,6 @@ expected_pace_full = (
 
 st.divider()
 
-# --- 全馬スコア演算処理 ---
 processed_horses = []
 
 for h_data in current_race_horses:
@@ -619,7 +559,6 @@ ranked_horses = sorted(
     processed_horses, key=lambda x: x["total_score"], reverse=True
 )
 
-# AI予想印・軸馬抽出
 honmei = ranked_horses[0] if len(ranked_horses) > 0 else None
 taikou = ranked_horses[1] if len(ranked_horses) > 1 else None
 tanana = ranked_horses[2] if len(ranked_horses) > 2 else None
@@ -637,9 +576,6 @@ tab_rank, tab_pace, tab_tickets, tab_sim = st.tabs([
     "💰 馬券シミュレーター",
 ])
 
-# ------------------------------------------------------------------------------
-# タブ1: 総合スコアランキング (HTML一括合成で描画爆速化)
-# ------------------------------------------------------------------------------
 with tab_rank:
     st.subheader(f"🏆 【{clean_race_title}】 KUINA AI分析スコア")
 
@@ -724,12 +660,9 @@ with tab_rank:
             "適性スコア",
             "推定脚質",
         ]
-        st.dataframe(df_disp, use_container_width=True, hide_index=True)
+        st.dataframe(df_disp, width="stretch", hide_index=True)
 
 
-# ------------------------------------------------------------------------------
-# タブ2: 展開予想・隊列マップ
-# ------------------------------------------------------------------------------
 with tab_pace:
     st.subheader(f"🏇 【{clean_race_title}】 展開予想・推定隊列マップ")
 
@@ -783,9 +716,6 @@ with tab_pace:
             st.caption("該当馬なし")
 
 
-# ------------------------------------------------------------------------------
-# タブ3: AIおすすめ馬券
-# ------------------------------------------------------------------------------
 with tab_tickets:
     st.subheader(f"🎯 【{clean_race_title}】 AI推奨 馬券買い目")
 
@@ -915,9 +845,6 @@ with tab_tickets:
             )
 
 
-# ------------------------------------------------------------------------------
-# タブ4: 馬券資金ポートフォリオ・シミュレーター
-# ------------------------------------------------------------------------------
 with tab_sim:
     st.subheader(f"💰 【{clean_race_title}】 馬券資金ポートフォリオ・シミュレーター")
 
