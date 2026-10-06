@@ -73,7 +73,7 @@ st.markdown(
         margin-top: 4px;
     }
 
-    /* 分析カード (スマホレスポンシブ対応) */
+    /* 分析カード (HTML/Flexbox最適化) */
     .horse-card {
         background-color: #ffffff;
         border-radius: 16px;
@@ -178,7 +178,7 @@ st.markdown(
 
 
 # ==============================================================================
-# 2. 高速化機能統合: pandas一括パース & キャッシュ
+# 2. 高速化機能統合: ピンポイント検索 & df.values高速パース & キャッシュ
 # ==============================================================================
 def get_jra_waku(umaban, total_horses):
     """頭数に応じたJRA標準枠番算出アルゴリズム"""
@@ -198,13 +198,25 @@ def get_jra_waku(umaban, total_horses):
     return 8
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def scan_and_load_all_csvs():
-    """pandasを活用した超高速一括CSVパース処理"""
-    all_csv_files = glob.glob("./**/*.csv", recursive=True) + glob.glob(
-        "./**/*.CSV", recursive=True
-    )
+    """ピンポイント検索＆df.valuesによる超高速CSV読み込み（.venv等の無駄スキャン防止）"""
+    search_paths = [
+        "./*.csv",
+        "./*.CSV",
+        "./data/*.csv",
+        "./data/*.CSV",
+        "/workspace/knowledge/*.csv",
+        "/workspace/knowledge/*.CSV",
+    ]
+    all_csv_files = []
+    for p in search_paths:
+        all_csv_files.extend(glob.glob(p))
     all_csv_files = sorted(list(set(all_csv_files)))
+
+    # バックアップ: ピンポイントで発見できない場合のみカレントを探索
+    if not all_csv_files:
+        all_csv_files = glob.glob("./*.csv") + glob.glob("./*.CSV")
 
     date_races_map = {}
 
@@ -226,9 +238,10 @@ def scan_and_load_all_csvs():
 
         races_by_key = {}
 
-        if df.shape[1] >= 12:
-            for _, row in df.iterrows():
-                col0 = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else ""
+        if len(df.columns) >= 12:
+            vals = df.values
+            for row in vals:
+                col0 = str(row[0]).strip() if pd.notna(row[0]) else ""
                 clean_date_col = col0.replace("-", "")
                 if not clean_date_col.isdigit():
                     continue
@@ -240,23 +253,23 @@ def scan_and_load_all_csvs():
                 else:
                     continue
 
-                track = str(row.iloc[1]).strip() if pd.notna(row.iloc[1]) else ""
-                rnum_str = str(row.iloc[2]).strip() if pd.notna(row.iloc[2]) else "1"
+                track = str(row[1]).strip() if pd.notna(row[1]) else ""
+                rnum_str = str(row[2]).strip() if pd.notna(row[2]) else "1"
                 rnum = int(rnum_str) if rnum_str.isdigit() else 1
-                umaban_str = str(row.iloc[3]).strip() if pd.notna(row.iloc[3]) else "1"
-                cond = str(row.iloc[4]).strip() if pd.notna(row.iloc[4]) else ""
-                track_type = str(row.iloc[5]).strip() if pd.notna(row.iloc[5]) else ""
-                dist = str(row.iloc[6]).strip() if pd.notna(row.iloc[6]) else ""
-                horse_name = str(row.iloc[7]).strip() if pd.notna(row.iloc[7]) else ""
-                sex = str(row.iloc[8]).strip() if len(row) > 8 and pd.notna(row.iloc[8]) else "牡"
-                age = str(row.iloc[9]).strip() if len(row) > 9 and pd.notna(row.iloc[9]) else "3"
-                jockey = str(row.iloc[10]).strip() if len(row) > 10 and pd.notna(row.iloc[10]) else "未定"
-                kinryo = str(row.iloc[11]).strip() if len(row) > 11 and pd.notna(row.iloc[11]) else "56"
+                umaban_str = str(row[3]).strip() if pd.notna(row[3]) else "1"
+                cond = str(row[4]).strip() if pd.notna(row[4]) else ""
+                track_type = str(row[5]).strip() if pd.notna(row[5]) else ""
+                dist = str(row[6]).strip() if pd.notna(row[6]) else ""
+                horse_name = str(row[7]).strip() if pd.notna(row[7]) else ""
+                sex = str(row[8]).strip() if len(row) > 8 and pd.notna(row[8]) else "牡"
+                age = str(row[9]).strip() if len(row) > 9 and pd.notna(row[9]) else "3"
+                jockey = str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
+                kinryo = str(row[11]).strip() if len(row) > 11 and pd.notna(row[11]) else "56"
 
                 # オッズ値取得
                 odds = "10.0"
                 if len(row) > 12:
-                    for p in row.iloc[12:]:
+                    for p in row[12:]:
                         p_str = str(p).strip() if pd.notna(p) else ""
                         try:
                             v = float(p_str)
@@ -309,8 +322,9 @@ def scan_and_load_all_csvs():
     return date_races_map
 
 
+@st.cache_data(show_spinner=False)
 def generate_past_data_for_horse(horse_name, umaban, waku):
-    """出走馬の過去走データ動的生成"""
+    """出走馬の過去走データ動的生成（キャッシュ化）"""
     h = abs(hash(horse_name)) % 100
     styles = ["逃げ", "先行", "差し", "追込"]
     style = styles[h % 4]
@@ -865,7 +879,7 @@ tab_rank, tab_pace, tab_tickets, tab_sim = st.tabs([
 ])
 
 # ------------------------------------------------------------------------------
-# タブ1: 総合スコアランキング
+# タブ1: 総合スコアランキング (HTML一括合成で描画爆速化)
 # ------------------------------------------------------------------------------
 with tab_rank:
     st.subheader(f"🏆 【{clean_race_title}】 KUINA AI分析スコア")
@@ -873,6 +887,7 @@ with tab_rank:
     sub_tab1, sub_tab2 = st.tabs(["🎴 多角分析カード", "📊 一覧テーブル"])
 
     with sub_tab1:
+        cards_html_list = []
         for rank, horse in enumerate(ranked_horses, start=1):
             crown = (
                 "🥇"
@@ -880,86 +895,62 @@ with tab_rank:
                 else ("🥈" if rank == 2 else ("🥉" if rank == 3 else f"#{rank}"))
             )
 
-            with st.container():
-                st.markdown('<div class="horse-card">', unsafe_allow_html=True)
-                col1, col2, col3 = st.columns([2, 4.5, 1.5])
+            tags_html = ""
+            if horse["bad_flag"] == "道悪◎":
+                tags_html += (
+                    '<span style="background-color:#10b981; color:white;'
+                    ' padding:3px 8px; border-radius:6px; font-weight:bold;'
+                    ' margin-right:4px; font-size:11px;">道悪◎</span>'
+                )
+            elif horse["bad_flag"] in ["危険馬", "道悪×"]:
+                tags_html += (
+                    '<span style="background-color:#ef4444; color:white;'
+                    ' padding:3px 8px; border-radius:6px; font-weight:bold;'
+                    ' margin-right:4px; font-size:11px;">危険馬</span>'
+                )
 
-                with col1:
-                    st.markdown(f"#### {crown} {horse['name']}")
-                    st.caption(
-                        f"枠{horse['waku']} {horse['num']}番 ｜ 騎手: {horse['jockey']} ｜"
-                        f" オッズ: **{horse['odds']}倍**"
-                    )
-                    st.markdown(f"推定脚質: **{horse['real_style']}**")
+            if horse["up3_flag"] == "キレ味抜群":
+                tags_html += (
+                    '<span style="background-color:#06b6d4; color:white;'
+                    ' padding:3px 8px; border-radius:6px; font-weight:bold;'
+                    ' margin-right:4px; font-size:11px;">キレ味抜群</span>'
+                )
 
-                    tags_html = ""
-                    if horse["bad_flag"] == "道悪◎":
-                        tags_html += (
-                            '<span style="background-color:#10b981; color:white;'
-                            ' padding:3px 8px; border-radius:6px; font-weight:bold;'
-                            ' margin-right:4px; font-size:11px;">道悪◎</span>'
-                        )
-                    elif horse["bad_flag"] in ["危険馬", "道悪×"]:
-                        tags_html += (
-                            '<span style="background-color:#ef4444; color:white;'
-                            ' padding:3px 8px; border-radius:6px; font-weight:bold;'
-                            ' margin-right:4px; font-size:11px;">危険馬</span>'
-                        )
+            if horse["pci_flag"] == "ハイペース耐性〇":
+                tags_html += (
+                    '<span style="background-color:#f97316; color:white;'
+                    ' padding:3px 8px; border-radius:6px; font-weight:bold;'
+                    ' margin-right:4px; font-size:11px;">ハイペース耐性〇</span>'
+                )
 
-                    if horse["up3_flag"] == "キレ味抜群":
-                        tags_html += (
-                            '<span style="background-color:#06b6d4; color:white;'
-                            ' padding:3px 8px; border-radius:6px; font-weight:bold;'
-                            ' margin-right:4px; font-size:11px;">キレ味抜群</span>'
-                        )
+            card_code = f"""
+            <div class="horse-card" style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px;">
+                <div style="flex: 1 1 200px; min-width: 180px;">
+                    <h4 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 800; color: #1e1b4b;">{crown} {horse['name']}</h4>
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">
+                        枠{horse['waku']} {horse['num']}番 ｜ 騎手: {horse['jockey']} ｜ オッズ: <b>{horse['odds']}倍</b>
+                    </div>
+                    <div style="font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px;">
+                        推定脚質: <b>{horse['real_style']}</b>
+                    </div>
+                    <div>{tags_html}</div>
+                </div>
+                <div style="flex: 2 1 300px; min-width: 250px;">
+                    <div class="analysis-label">🚩 枠順・バイアス適性</div>
+                    <div class="analysis-text">{horse["bias_comment"]}</div>
+                    <div class="analysis-label">🌧️ 馬場・天候条件</div>
+                    <div class="analysis-text">{horse["bad_comment"]}</div>
+                    <div class="analysis-label">⏱️ PCI・末脚持続力</div>
+                    <div class="analysis-text">{horse["pci_comment"]}</div>
+                </div>
+                <div style="flex: 0 0 80px; text-align: right;">
+                    <div class="score-badge">{horse["total_score"]} <span style="font-size:13px;">pt</span></div>
+                </div>
+            </div>
+            """
+            cards_html_list.append(card_code)
 
-                    if horse["pci_flag"] == "ハイペース耐性〇":
-                        tags_html += (
-                            '<span style="background-color:#f97316; color:white;'
-                            ' padding:3px 8px; border-radius:6px; font-weight:bold;'
-                            ' margin-right:4px; font-size:11px;">ハイペース耐性〇</span>'
-                        )
-
-                    if tags_html:
-                        st.markdown(tags_html, unsafe_allow_html=True)
-
-                with col2:
-                    st.markdown(
-                        '<div class="analysis-label">🚩 枠順・バイアス適性</div>',
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(
-                        f'<div class="analysis-text">{horse["bias_comment"]}</div>',
-                        unsafe_allow_html=True,
-                    )
-
-                    st.markdown(
-                        '<div class="analysis-label">🌧️ 馬場・天候条件</div>',
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(
-                        f'<div class="analysis-text">{horse["bad_comment"]}</div>',
-                        unsafe_allow_html=True,
-                    )
-
-                    st.markdown(
-                        '<div class="analysis-label">⏱️ PCI・末脚持続力</div>',
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(
-                        f'<div class="analysis-text">{horse["pci_comment"]}</div>',
-                        unsafe_allow_html=True,
-                    )
-
-                with col3:
-                    st.markdown(
-                        '<div class="score-badge">'
-                        f'{horse["total_score"]} <span'
-                        ' style="font-size:13px;">pt</span></div>',
-                        unsafe_allow_html=True,
-                    )
-
-                st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("\n".join(cards_html_list), unsafe_allow_html=True)
 
     with sub_tab2:
         df_disp = pd.DataFrame(ranked_horses)[
@@ -1005,48 +996,32 @@ with tab_pace:
     with col_pos1:
         st.markdown("##### 🏃 逃げ (先頭)")
         if style_groups["逃げ"]:
-            for h in style_groups["逃げ"]:
-                st.markdown(
-                    f'<div class="horse-pill">枠{h["waku"]} {h["num"]}番'
-                    f' {h["name"]}</div>',
-                    unsafe_allow_html=True,
-                )
+            pills = "".join([f'<div class="horse-pill">枠{h["waku"]} {h["num"]}番 {h["name"]}</div>' for h in style_groups["逃げ"]])
+            st.markdown(pills, unsafe_allow_html=True)
         else:
             st.caption("該当馬なし")
 
     with col_pos2:
         st.markdown("##### 🐎 先行 (好位)")
         if style_groups["先行"]:
-            for h in style_groups["先行"]:
-                st.markdown(
-                    f'<div class="horse-pill">枠{h["waku"]} {h["num"]}番'
-                    f' {h["name"]}</div>',
-                    unsafe_allow_html=True,
-                )
+            pills = "".join([f'<div class="horse-pill">枠{h["waku"]} {h["num"]}番 {h["name"]}</div>' for h in style_groups["先行"]])
+            st.markdown(pills, unsafe_allow_html=True)
         else:
             st.caption("該当馬なし")
 
     with col_pos3:
         st.markdown("##### 🐎 差し (中団)")
         if style_groups["差し"]:
-            for h in style_groups["差し"]:
-                st.markdown(
-                    f'<div class="horse-pill">枠{h["waku"]} {h["num"]}番'
-                    f' {h["name"]}</div>',
-                    unsafe_allow_html=True,
-                )
+            pills = "".join([f'<div class="horse-pill">枠{h["waku"]} {h["num"]}番 {h["name"]}</div>' for h in style_groups["差し"]])
+            st.markdown(pills, unsafe_allow_html=True)
         else:
             st.caption("該当馬なし")
 
     with col_pos4:
         st.markdown("##### 🐎 追込 (後方)")
         if style_groups["追込"]:
-            for h in style_groups["追込"]:
-                st.markdown(
-                    f'<div class="horse-pill">枠{h["waku"]} {h["num"]}番'
-                    f' {h["name"]}</div>',
-                    unsafe_allow_html=True,
-                )
+            pills = "".join([f'<div class="horse-pill">枠{h["waku"]} {h["num"]}番 {h["name"]}</div>' for h in style_groups["追込"]])
+            st.markdown(pills, unsafe_allow_html=True)
         else:
             st.caption("該当馬なし")
 
