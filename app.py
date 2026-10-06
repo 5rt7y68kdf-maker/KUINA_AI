@@ -231,7 +231,8 @@ def scan_and_load_all_csvs():
 
         if df.shape[1] >= 12:
             for _, row in df.iterrows():
-                clean_date_col = str(row[0]).strip().replace("-", "")
+                col0 = str(row[0]).strip() if pd.notna(row[0]) else ""
+                clean_date_col = col0.replace("-", "")
                 if not clean_date_col.isdigit():
                     continue
 
@@ -242,23 +243,23 @@ def scan_and_load_all_csvs():
                 else:
                     continue
 
-                track = str(row[1]).strip()
-                rnum_str = str(row[2]).strip()
+                track = str(row[1]).strip() if pd.notna(row[1]) else ""
+                rnum_str = str(row[2]).strip() if pd.notna(row[2]) else "1"
                 rnum = int(rnum_str) if rnum_str.isdigit() else 1
-                umaban_str = str(row[3]).strip()
-                cond = str(row[4]).strip()
-                track_type = str(row[5]).strip()
-                dist = str(row[6]).strip()
-                horse_name = str(row[7]).strip()
-                sex = str(row[8]).strip() if len(row) > 8 else "牡"
-                age = str(row[9]).strip() if len(row) > 9 else "3"
-                jockey = str(row[10]).strip() if len(row) > 10 else "未定"
-                kinryo = str(row[11]).strip() if len(row) > 11 else "56"
+                umaban_str = str(row[3]).strip() if pd.notna(row[3]) else "1"
+                cond = str(row[4]).strip() if pd.notna(row[4]) else ""
+                track_type = str(row[5]).strip() if pd.notna(row[5]) else ""
+                dist = str(row[6]).strip() if pd.notna(row[6]) else ""
+                horse_name = str(row[7]).strip() if pd.notna(row[7]) else ""
+                sex = str(row[8]).strip() if len(row) > 8 and pd.notna(row[8]) else "牡"
+                age = str(row[9]).strip() if len(row) > 9 and pd.notna(row[9]) else "3"
+                jockey = str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
+                kinryo = str(row[11]).strip() if len(row) > 11 and pd.notna(row[11]) else "56"
 
                 # オッズ値取得
                 odds = "10.0"
                 for p in row[12:]:
-                    p_str = str(p).strip()
+                    p_str = str(p).strip() if pd.notna(p) else ""
                     try:
                         v = float(p_str)
                         if 1.0 <= v <= 999.0 and "." in p_str:
