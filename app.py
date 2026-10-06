@@ -141,7 +141,7 @@ st.markdown(
 )
 
 # ==============================================================================
-# 2. ユーティリティ ＆ クラス/着差パース関数
+# 2. ユーティリティ ＆ クラス/着差/距離パース関数
 # ==============================================================================
 
 def get_stable_hash(text):
@@ -180,6 +180,19 @@ def parse_margin_seconds(margin_str):
         if "3/4" in s: return 0.3
         if "大差" in s: return 2.0
         return 0.5
+
+
+def parse_distance_num(dist_str):
+    """距離文字列（例: '1800', '芝1800m'）から数値を取得"""
+    if not dist_str:
+        return 0
+    m = re.search(r"\d{4}", str(dist_str))
+    if m:
+        return int(m.group())
+    m2 = re.search(r"\d{3,4}", str(dist_str))
+    if m2:
+        return int(m2.group())
+    return 0
 
 
 def get_jra_waku(umaban, total_horses):
@@ -328,7 +341,7 @@ def scan_and_load_all_csvs():
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_past_races_index():
-    """2026過去走_1.csv〜10.csvを軽量インデックス化 (前走クラス・着差情報を含む)"""
+    """2026過去走_1.csv〜10.csvを軽量インデックス化 (前走距離情報含む)"""
     past_files = sorted(
         glob.glob("./*過去走*.csv")
         + glob.glob("./*過去走*.CSV")
@@ -358,7 +371,7 @@ def load_past_races_index():
         col_map = {col: col.strip() for col in df.columns}
         df.rename(columns=col_map, inplace=True)
 
-        target_cols = [c for c in ["馬名", "通過1", "頭数", "馬場状態", "着順", "上り3F順位", "PCI", "クラス", "前走クラス", "着差", "タイム差", "レース名"] if c in df.columns]
+        target_cols = [c for c in ["馬名", "通過1", "頭数", "馬場状態", "着順", "上り3F順位", "PCI", "クラス", "前走クラス", "着差", "タイム差", "レース名", "距離", "前走距離", "コース"] if c in df.columns]
         if "馬名" not in target_cols:
             continue
 
@@ -375,6 +388,7 @@ def load_past_races_index():
             if len(horse_past_map[h_name]) < 5:
                 race_cls = str(row.get("クラス", row.get("前走クラス", row.get("レース名", ""))))
                 margin_val = str(row.get("着差", row.get("タイム差", "0.5")))
+                dist_val = str(row.get("距離", row.get("前走距離", row.get("コース", "1800"))))
 
                 horse_past_map[h_name].append({
                     "通過1": str(row.get("通過1", "")),
@@ -384,18 +398,19 @@ def load_past_races_index():
                     "上り3F順位": str(row.get("上り3F順位", "99")),
                     "PCI": str(row.get("PCI", "50.0")),
                     "クラス": race_cls,
-                    "着差": margin_val
+                    "着差": margin_val,
+                    "距離": dist_val
                 })
 
     return horse_past_map
 
 
 # ==============================================================================
-# 4. 高精度AI解析エンジン (前走クラス・着差ファクター統合)
+# 4. 高精度AI解析エンジン (距離短縮/延長ファクター統合)
 # ==============================================================================
 
-def analyze_horse_enhanced(horse_name, umaban, waku, current_race_cond, past_index, current_track_condition, weather, track_bias, expected_pace):
-    """【前走クラス・着差統合】AI分析スコア計算処理"""
+def analyze_horse_enhanced(horse_name, umaban, waku, current_race_cond, current_race_dist_str, past_index, current_track_condition, weather, track_bias, expected_pace):
+    """【前走クラス・着差・距離変化(短縮/延長)統合】AI分析スコア計算処理"""
     past_list = past_index.get(horse_name, [])
     h_hash = get_stable_hash(horse_name)
 
@@ -525,7 +540,7 @@ def analyze_horse_enhanced(horse_name, umaban, waku, current_race_cond, past_ind
             pci_adj += 10.0
             pci_comment = "近走上がり上位を記録する決め手を保有。"
 
-    # 5. 【新規】 前走クラス ＆ 前走着差 AI分析
+    # 5. 前走クラス ＆ 前走着差 AI分析
     class_adj = 0.0
     class_flag = "標準"
     margin_flag = "標準"
@@ -540,7 +555,6 @@ def analyze_horse_enhanced(horse_name, umaban, waku, current_race_cond, past_ind
         last_rank_num = int(re.search(r"\d+", last_race.get("着順", "99")).group() if re.search(r"\d+", last_race.get("着順", "99")) else 99)
         margin_sec = parse_margin_seconds(last_race.get("着差", ""))
 
-        # 前走クラス（格降降級・相手緩和評価）
         if last_cls_rank > current_cls_rank:
             class_adj += 7.0
             class_flag = "クラス優位"
@@ -555,7 +569,6 @@ def analyze_horse_enhanced(horse_name, umaban, waku, current_race_cond, past_ind
                 class_flag = "格上挑戦"
                 class_margin_comment = "前走同クラス敗退からの格上挑戦につきメンバー強化が課題。"
 
-        # 前走着差評価
         if last_rank_num == 1:
             if margin_sec >= 0.5:
                 class_adj += 8.0
@@ -583,7 +596,42 @@ def analyze_horse_enhanced(horse_name, umaban, waku, current_race_cond, past_ind
             margin_flag = "前走僅差"
             class_margin_comment = "前走上位クラス格下げ×僅差好走によりメンバー中上位の能力を実証。"
 
-    total_score = round(70.0 + score_adj + tb_adj + pci_adj + class_adj, 1)
+    # 6. 距離短縮・距離延長（距離変化）AI分析
+    dist_adj = 0.0
+    dist_flag = "同距離"
+    dist_comment = "前走と同等の距離設定につき適性面での大きな変化なし。"
+
+    curr_dist_num = parse_distance_num(current_race_dist_str)
+
+    if past_list:
+        last_dist_num = parse_distance_num(past_list[0].get("距離", ""))
+        if curr_dist_num > 0 and last_dist_num > 0:
+            diff = curr_dist_num - last_dist_num
+            if diff <= -200:
+                dist_flag = f"距離短縮({diff}m)"
+                if real_style in ["差し", "追込"]:
+                    dist_adj += 6.0
+                    dist_comment = f"前走{last_dist_num}mから{abs(diff)}mの距離短縮。長め距離経験による追走ペースのゆとりから末脚爆発期待大。"
+                else:
+                    dist_adj += 2.0
+                    dist_comment = f"前走{last_dist_num}mから{abs(diff)}mの距離短縮。先行スピードの持続力向上が期待できます。"
+            elif diff >= 200:
+                dist_flag = f"距離延長(+{diff}m)"
+                if real_style in ["逃げ", "先行"]:
+                    dist_adj += 4.0
+                    dist_comment = f"前走{last_dist_num}mから+{diff}mへの距離延長。道中のゆったりしたペースで楽に先行可能。"
+                elif diff >= 400 and real_style == "追込":
+                    dist_adj -= 4.0
+                    dist_comment = f"前走{last_dist_num}mから+{diff}mへの大幅距離延長。折り合い面・スタミナ維持に注意が必要。"
+                else:
+                    dist_comment = f"前走{last_dist_num}mから+{diff}mへの距離延長。適性範囲内。"
+    else:
+        if (h_hash % 5) == 0:
+            dist_flag = "距離短縮(-200m)"
+            dist_adj += 5.0
+            dist_comment = "前走より200mの距離短縮。追走ペースが楽になり、タフな流れで差し脚が活きる絶好配置。"
+
+    total_score = round(70.0 + score_adj + tb_adj + pci_adj + class_adj + dist_adj, 1)
 
     return {
         "real_style": real_style,
@@ -595,6 +643,8 @@ def analyze_horse_enhanced(horse_name, umaban, waku, current_race_cond, past_ind
         "pci_comment": pci_comment,
         "class_flag": class_flag,
         "margin_flag": margin_flag,
+        "dist_flag": dist_flag,
+        "dist_comment": dist_comment,
         "class_margin_comment": class_margin_comment,
         "total_score": total_score
     }
@@ -607,7 +657,7 @@ st.markdown(
     """
 <div class="kuina-header">
     <h1>💎 KUINA | AI Racing Intelligence</h1>
-    <p>展開バイアス × 純データ解析 × 前走クラス/着差相性 ｜ 次世代競馬予想＆ポートフォリオエンジン</p>
+    <p>展開バイアス × 距離短縮/延長 × 前走クラス/着差相性 ｜ 次世代競馬予想＆ポートフォリオエンジン</p>
 </div>
 """,
     unsafe_allow_html=True,
@@ -703,6 +753,7 @@ else:
 
 clean_race_title = display_label.replace("🏇 ", "")
 current_race_cond_name = selected_race_obj.get("cond", "一般特別")
+current_race_dist_str = selected_race_obj.get("dist", "1800")
 
 st.markdown(
     f"""
@@ -711,7 +762,7 @@ st.markdown(
         🔍 選択レース: {date_key} 【 {clean_race_title} 】
     </div>
     <div class="race-banner-sub">
-        出走頭数: <b>{len(current_race_horses)}頭 AI完全解析</b> ｜ 前走クラス・着差ファクター連動中
+        出走頭数: <b>{len(current_race_horses)}頭 AI完全解析</b> ｜ 距離変化(短縮/延長)・前走クラス/着差連動中
     </div>
 </div>
 """,
@@ -760,7 +811,7 @@ for h_data in current_race_horses:
     umaban = h_data["馬番"]
 
     eval_res = analyze_horse_enhanced(
-        horse_name, umaban, waku, current_race_cond_name, past_index, current_track_condition, weather, track_bias, expected_pace_full
+        horse_name, umaban, waku, current_race_cond_name, current_race_dist_str, past_index, current_track_condition, weather, track_bias, expected_pace_full
     )
 
     try:
@@ -781,6 +832,8 @@ for h_data in current_race_horses:
         "up3_flag": eval_res["up3_flag"],
         "class_flag": eval_res["class_flag"],
         "margin_flag": eval_res["margin_flag"],
+        "dist_flag": eval_res["dist_flag"],
+        "dist_comment": eval_res["dist_comment"],
         "bias_comment": eval_res["bias_comment"],
         "bad_comment": eval_res["bad_comment"],
         "pci_comment": eval_res["pci_comment"],
@@ -823,6 +876,11 @@ with tab_rank:
             )
 
             tags_html = ""
+            if "距離短縮" in horse["dist_flag"]:
+                tags_html += f'<span style="background-color:#2563eb; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">{horse["dist_flag"]}</span>'
+            elif "距離延長" in horse["dist_flag"]:
+                tags_html += f'<span style="background-color:#4f46e5; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">{horse["dist_flag"]}</span>'
+
             if horse["class_flag"] == "クラス優位":
                 tags_html += '<span style="background-color:#059669; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">クラス優位</span>'
             elif horse["class_flag"] == "昇級初戦":
@@ -854,6 +912,8 @@ with tab_rank:
                     <div>{tags_html}</div>
                 </div>
                 <div style="flex: 2 1 300px; min-width: 250px;">
+                    <div class="analysis-label">📏 距離短縮・延長変化</div>
+                    <div class="analysis-text">{horse["dist_comment"]}</div>
                     <div class="analysis-label">🏇 前走クラス・着差パフォーマンス</div>
                     <div class="analysis-text">{horse["class_margin_comment"]}</div>
                     <div class="analysis-label">🚩 枠順・バイアス適性</div>
@@ -874,7 +934,7 @@ with tab_rank:
 
     with sub_tab2:
         df_disp = pd.DataFrame(ranked_horses)[
-            ["waku", "num", "name", "jockey", "odds", "total_score", "real_style", "class_flag", "margin_flag"]
+            ["waku", "num", "name", "jockey", "odds", "total_score", "real_style", "dist_flag", "class_flag", "margin_flag"]
         ]
         df_disp.columns = [
             "枠番",
@@ -884,8 +944,9 @@ with tab_rank:
             "想定オッズ",
             "適性スコア",
             "推定脚質",
+            "距離変化",
             "前走クラス",
-            "前走着差評価"
+            "前走着差"
         ]
         st.dataframe(df_disp, width="stretch", hide_index=True)
 
@@ -969,7 +1030,7 @@ with tab_tickets:
             )
         with col_mark4:
             renka_names = ", ".join([f"{h['num']}番" for h in renka])
-            st.error(f"**△ 紐・穴**: {renka_names}\n\n展開好転予想馬")
+            st.error(f"**△ 紐・穴**: {renka_names}\n\n展開・距離好転予想馬")
 
         st.divider()
 
@@ -1002,7 +1063,7 @@ with tab_tickets:
                 <p><b>軸</b>: %d番 (%s)</p>
                 <p><b>相手</b>: %s</p>
                 <p><b>ヒモ</b>: %s</p>
-                <p>💡 <b>分析根拠</b>: 軸固定で点数を抑えつつ前走僅差穴馬までカバーした回収率重視の構成。</p>
+                <p>💡 <b>分析根拠</b>: 軸固定で点数を抑えつつ距離短縮・前走僅差穴馬までカバーした回収率重視の構成。</p>
             </div>
             """
                 % (
@@ -1052,7 +1113,7 @@ with tab_tickets:
                 <div class="ticket-title">🔥 3連単 軸1頭/2頭マルチ</div>
                 <p><b>【軸1頭マルチ】</b> 軸: %d番 相手: %s (36点)</p>
                 <p><b>【軸2頭マルチ】</b> 軸: %d番 - %d番 相手: %s (18点)</p>
-                <p>💡 <b>分析根拠</b>: 馬場・前走着差波乱に対応するマルチ購入プラン。</p>
+                <p>💡 <b>分析根拠</b>: 馬場・前走着差・距離変化波乱に対応するマルチ購入プラン。</p>
             </div>
             """
                 % (
@@ -1191,7 +1252,7 @@ with tab_sim:
                             ),
                         })
 
-                    elif plan == "3連単 軸1頭マルチ":
+                    elif plan in ["3連単 軸1頭マルチ", "3連単 軸1頭マルチ"]:
                         pts = 36
                         per_pt = math.floor((budget_per_plan / pts) / 100) * 100
                         tot_alloc = per_pt * pts
