@@ -693,7 +693,7 @@ t2_name = d_info.get("track2_name", "京都")
 t1_races = d_info.get("track1_races", {})
 t2_races = d_info.get("track2_races", {})
 
-race_options_formatted = []
+race_labels = []
 
 if date_key in date_races_map:
     races_for_date = date_races_map[date_key]
@@ -708,25 +708,24 @@ if date_key in date_races_map:
             rinfo = t2_races.get(rnum, f"{rnum}R レース")
 
         label = f"🏇 {tname} {rinfo} ({len(r)}頭立)"
-        race_options_formatted.append((idx, label))
+        race_labels.append(label)
 else:
     races_for_date = []
-    race_options_formatted = [
-        (0, "🏇 東京 11R 毎日王冠 (G2) [芝1800m] (15頭立) デモ"),
-        (1, "🏇 京都 11R 京都大賞典 (G2) [芝2400m] (14頭立) デモ"),
+    race_labels = [
+        "🏇 東京 11R 毎日王冠 (G2) [芝1800m] (15頭立) デモ",
+        "🏇 京都 11R 京都大賞典 (G2) [芝2400m] (14頭立) デモ",
     ]
 
-# 2. レース選択（1つのプルダウンで「東京11R サウジアラビアRC」「京都11R オパールS」などを即選択！）
+# 2. レース選択（1つのプルダウンで「東京 11R 毎日王冠」「京都 11R 京都大賞典」などを即選択！）
 with col_search_race:
     selected_race_combo_idx = st.selectbox(
         "🏇 レースを選択 (競馬場・R番号・レース名)",
-        range(len(race_options_formatted)),
-        format_func=lambda x: race_options_formatted[x][1],
+        range(len(race_labels)),
+        format_func=lambda x: race_labels[x],
     )
 
-selected_race_idx, display_label = race_options_formatted[
-    selected_race_combo_idx
-]
+selected_race_idx = selected_race_combo_idx
+display_label = race_labels[selected_race_combo_idx]
 
 # 出走馬リスト確定
 if races_for_date and selected_race_idx < len(races_for_date):
@@ -852,7 +851,7 @@ ranked_horses = sorted(
     processed_horses, key=lambda x: x["total_score"], reverse=True
 )
 
-# AI予想印・軸馬抽出 (1つの辞書オブジェクトとして正しくインデックス取得)
+# AI予想印・軸馬抽出 (正しいインデックスアクセス [0], [1], [2])
 honmei = ranked_horses[0] if len(ranked_horses) > 0 else None
 taikou = ranked_horses[1] if len(ranked_horses) > 1 else None
 tanana = ranked_horses[2] if len(ranked_horses) > 2 else None
