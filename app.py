@@ -178,7 +178,7 @@ st.markdown(
 
 
 # ==============================================================================
-# 2. 高速化機能統合: pandas一括パース & 無制限キャッシュ
+# 2. 高速化機能統合: pandas一括パース & キャッシュ
 # ==============================================================================
 def get_jra_waku(umaban, total_horses):
     """頭数に応じたJRA標準枠番算出アルゴリズム"""
@@ -198,7 +198,7 @@ def get_jra_waku(umaban, total_horses):
     return 8
 
 
-@st.cache_data  # 無制限キャッシュで2回目以降の読み込みを0秒化
+@st.cache_data
 def scan_and_load_all_csvs():
     """pandasを活用した超高速一括CSVパース処理"""
     all_csv_files = glob.glob("./**/*.csv", recursive=True) + glob.glob(
