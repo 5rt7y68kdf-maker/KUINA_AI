@@ -178,7 +178,7 @@ st.markdown(
 
 
 # ==============================================================================
-# 2. 全自動スキャン＆CSVパース処理 (完全版CSV対話解析エンジン)
+# 2. 高速化機能統合: pandas一括パース & 無制限キャッシュ
 # ==============================================================================
 def get_jra_waku(umaban, total_horses):
     """頭数に応じたJRA標準枠番算出アルゴリズム"""
@@ -198,9 +198,9 @@ def get_jra_waku(umaban, total_horses):
     return 8
 
 
-@st.cache_data(ttl=5)
+@st.cache_data  # 無制限キャッシュで2回目以降の読み込みを0秒化
 def scan_and_load_all_csvs():
-    """カレントフォルダおよびサブフォルダ内のすべてのCSVを自動解析"""
+    """pandasを活用した超高速一括CSVパース処理"""
     all_csv_files = glob.glob("./**/*.csv", recursive=True) + glob.glob(
         "./**/*.CSV", recursive=True
     )
@@ -214,49 +214,54 @@ def scan_and_load_all_csvs():
             continue
 
         try:
-            with open(fpath, "r", encoding="cp932", errors="replace") as f:
-                lines = [l.strip() for l in f.readlines()]
-        except Exception:
             try:
-                with open(fpath, "r", encoding="utf-8", errors="replace") as f:
-                    lines = [l.strip() for l in f.readlines()]
+                df = pd.read_csv(fpath, encoding="cp932", header=None, dtype=str)
             except Exception:
-                continue
+                df = pd.read_csv(fpath, encoding="utf-8", header=None, dtype=str)
+        except Exception:
+            continue
+
+        if df.empty:
+            continue
+
+        # ヘッダー行などの除外
+        df = df[~df[0].astype(str).str.contains("枠番|日付|年月日", na=False)]
 
         races_by_key = {}
 
-        for l in lines:
-            if not l or l.startswith("枠番") or l.startswith("日付") or "年月日" in l:
-                continue
-            parts = [p.strip() for p in l.split(",")]
+        if df.shape[1] >= 12:
+            for _, row in df.iterrows():
+                clean_date_col = str(row[0]).strip().replace("-", "")
+                if not clean_date_col.isdigit():
+                    continue
 
-            # フォーマット1: 完全版CSV (20261003.csv, 20261004.csv 等)
-            clean_date_col = parts[0].replace("-", "")
-            if len(parts) >= 12 and clean_date_col.isdigit() and len(clean_date_col) in [6, 8]:
                 if len(clean_date_col) == 6:
                     date_str = f"20{clean_date_col[:2]}-{clean_date_col[2:4]}-{clean_date_col[4:6]}"
-                else:
+                elif len(clean_date_col) == 8:
                     date_str = f"{clean_date_col[:4]}-{clean_date_col[4:6]}-{clean_date_col[6:8]}"
+                else:
+                    continue
 
-                track = parts[1]
-                rnum_str = parts[2]
+                track = str(row[1]).strip()
+                rnum_str = str(row[2]).strip()
                 rnum = int(rnum_str) if rnum_str.isdigit() else 1
-                umaban_str = parts[3]
-                cond = parts[4]
-                track_type = parts[5]  # 芝 or ダ
-                dist = parts[6]        # 1800
-                horse_name = parts[7]
-                sex = parts[8] if len(parts) > 8 else "牡"
-                age = parts[9] if len(parts) > 9 else "3"
-                jockey = parts[10] if len(parts) > 10 else "未定"
-                kinryo = parts[11] if len(parts) > 11 else "56"
+                umaban_str = str(row[3]).strip()
+                cond = str(row[4]).strip()
+                track_type = str(row[5]).strip()
+                dist = str(row[6]).strip()
+                horse_name = str(row[7]).strip()
+                sex = str(row[8]).strip() if len(row) > 8 else "牡"
+                age = str(row[9]).strip() if len(row) > 9 else "3"
+                jockey = str(row[10]).strip() if len(row) > 10 else "未定"
+                kinryo = str(row[11]).strip() if len(row) > 11 else "56"
 
                 # オッズ値取得
                 odds = "10.0"
-                for p in parts[12:]:
+                for p in row[12:]:
+                    p_str = str(p).strip()
                     try:
-                        v = float(p)
-                        if 1.0 <= v <= 999.0 and "." in p:
+                        v = float(p_str)
+                        if 1.0 <= v <= 999.0 and "." in p_str:
                             odds = str(v)
                             break
                     except ValueError:
@@ -284,40 +289,7 @@ def scan_and_load_all_csvs():
                     "斤量": kinryo
                 })
 
-            # フォーマット2: DG形式互換 (DG261003.CSV 等)
-            elif len(parts) >= 8 and (parts[0].isdigit() or parts[0] == ""):
-                m = re.search(r"DG(\d{2})(\d{2})(\d{2})", fname, re.IGNORECASE)
-                if m:
-                    yy, mm, dd = m.groups()
-                    date_str = f"20{yy}-{mm}-{dd}"
-                    waku_val = int(parts[0]) if parts[0].isdigit() else 1
-                    umaban_val = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 1
-                    horse_name = parts[7] if len(parts) > 7 else "不明馬"
-
-                    key = (date_str, "競馬場", 1)
-                    if key not in races_by_key:
-                        races_by_key[key] = {
-                            "date": date_str,
-                            "track": "競馬場",
-                            "rnum": 1,
-                            "cond": "出馬表",
-                            "track_type": "芝",
-                            "dist": "1800",
-                            "horses": []
-                        }
-
-                    races_by_key[key]["horses"].append({
-                        "枠番": waku_val,
-                        "馬番": umaban_val,
-                        "馬名": horse_name,
-                        "騎手": parts[12] if len(parts) > 12 else "未定",
-                        "単勝オッズ": parts[15] if len(parts) > 15 else "10.0",
-                        "性別": parts[9] if len(parts) > 9 else "牡",
-                        "年齢": parts[10] if len(parts) > 10 else "3",
-                        "斤量": parts[13] if len(parts) > 13 else "56"
-                    })
-
-        # 枠番自動計算＆マップ格納
+        # 枠番判定＆格納
         for key, rdata in races_by_key.items():
             tot = len(rdata["horses"])
             for h in rdata["horses"]:
@@ -677,7 +649,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 全自動CSVスキャン実行
+# 全自動CSVスキャン実行 (爆速化エンジン)
 date_races_map = scan_and_load_all_csvs()
 
 # --- 超シンプル 2ステップ検索エリア ---
@@ -713,14 +685,12 @@ races_for_date = date_races_map.get(date_key, [])
 race_options = []
 if races_for_date:
     for idx, r in enumerate(races_for_date):
-        # 例: 🏇 東京 11R 毎日王冠G2 [芝1800m] (17頭立)
         label = (
             f"🏇 {r['track']} {r['rnum']}R {r['cond']} "
             f"[{r['track_type']}{r['dist']}m] ({len(r['horses'])}頭立)"
         )
         race_options.append({"idx": idx, "label": label, "data": r})
 else:
-    # デモフォールバック
     demo_r1 = {
         "track": "東京",
         "rnum": 11,
@@ -877,7 +847,7 @@ ranked_horses = sorted(
     processed_horses, key=lambda x: x["total_score"], reverse=True
 )
 
-# AI予想印・軸馬抽出 (正しい単一オブジェクトの安全取得)
+# AI予想印・軸馬抽出
 honmei = ranked_horses[0] if len(ranked_horses) > 0 else None
 taikou = ranked_horses[1] if len(ranked_horses) > 1 else None
 tanana = ranked_horses[2] if len(ranked_horses) > 2 else None
