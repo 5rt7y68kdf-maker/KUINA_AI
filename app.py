@@ -159,7 +159,7 @@ def extract_raw_csv_odds(row):
                 val = float(val_str)
                 if val > 0:
                     return round(val / 10.0, 1)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, IndexError):
             pass
     return None
 
