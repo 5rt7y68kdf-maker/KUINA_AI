@@ -141,7 +141,7 @@ st.markdown(
 )
 
 # ==============================================================================
-# 2. ユーティリティ ＆ オッズ/クラス/着差/距離パース関数
+# 2. ユーティリティ ＆ クラス/着差/距離パース関数
 # ==============================================================================
 
 
@@ -151,13 +151,24 @@ def get_stable_hash(text):
 
 
 def extract_raw_csv_odds(row):
-    """CSV行のCol 27 (JRA TARGET予想オッズ) から実際の単勝オッズ数値を安全に抽出"""
+    """CSV行から単勝オッズ数値を抽出 (Col 30: 単勝オッズ)"""
+    if len(row) > 30:
+        try:
+            val_str = str(row[30]).strip()
+            if val_str and val_str != "0":
+                val = float(val_str)
+                if val > 0:
+                    return val
+        except (ValueError, TypeError, IndexError):
+            pass
+
+    # フォールバック (Col 27予想オッズ形式)
     if len(row) > 27:
         try:
             val_str = str(row[27]).strip()
             if val_str and val_str != "0":
                 val = float(val_str)
-                if val > 0:
+                if 0 < val < 1000:
                     return round(val / 10.0, 1)
         except (ValueError, TypeError, IndexError):
             pass
@@ -243,6 +254,50 @@ def get_jra_waku(umaban, total_horses):
     return 8
 
 
+def calculate_race_ai_odds(processed_horses):
+    """オッズ未設定時用のAI想定オッズフォールバックエンジン"""
+    if not processed_horses:
+        return processed_horses
+
+    scores = np.array([h["total_score"] for h in processed_horses], dtype=float)
+    prizes = np.array([h.get("prize_money", 0.0) for h in processed_horses], dtype=float)
+
+    prize_bonus = np.where(prizes > 0, np.log10(prizes + 1.0) * 1.2, 0.0)
+    combined_ability = scores + prize_bonus
+
+    mean_a = np.mean(combined_ability)
+    std_a = np.std(combined_ability) if np.std(combined_ability) > 1e-5 else 1.0
+    z_scores = (combined_ability - mean_a) / std_a
+
+    tau = 0.85
+    exp_z = np.exp(z_scores / tau)
+    probs = exp_z / np.sum(exp_z)
+
+    raw_odds = 0.80 / probs
+
+    for idx, h in enumerate(processed_horses):
+        if h.get("raw_csv_odds") is not None and h["raw_csv_odds"] > 0:
+            h["odds"] = h["raw_csv_odds"]
+            h["odds_str"] = f"{h['raw_csv_odds']:.1f}倍"
+        else:
+            o = raw_odds[idx]
+            if o < 1.5:
+                val = 1.5
+            elif o < 10.0:
+                val = round(o, 1)
+            elif o < 50.0:
+                val = round(o * 2) / 2.0
+            elif o < 100.0:
+                val = round(o)
+            else:
+                val = round(o / 10) * 10
+
+            h["odds"] = float(val)
+            h["odds_str"] = f"{val:.1f}倍(想定)"
+
+    return processed_horses
+
+
 # ==============================================================================
 # 3. 超軽量データロード (三会場対応 ＆ 過去走10ファイル最適化)
 # ==============================================================================
@@ -250,7 +305,7 @@ def get_jra_waku(umaban, total_horses):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def scan_and_load_all_csvs():
-    """三会場（全競馬場・1日最大36R以上）対応の出走表ロード（正確なオッズ取得機能付き）"""
+    """三会場（全競馬場・1日最大36R以上）対応の出走表ロード（オッズ・人気データ完全同期）"""
     raw_files = (
         glob.glob("./*.csv")
         + glob.glob("./*.CSV")
@@ -341,8 +396,18 @@ def scan_and_load_all_csvs():
                     str(row[11]).strip() if len(row) > 11 and pd.notna(row[11]) else "56"
                 )
 
-                umaban_num = int(umaban_str) if umaban_str.isdigit() else 1
+                # Col 27: 本賞金(万円)
+                prize_money = 0.0
+                if len(row) > 27 and str(row[27]).strip().isdigit():
+                    prize_money = float(str(row[27]).strip())
+
+                # Col 29: 人気, Col 30: 単勝オッズ
+                pop_rank = None
+                if len(row) > 29 and str(row[29]).strip().isdigit():
+                    pop_rank = int(str(row[29]).strip())
+
                 raw_csv_odds = extract_raw_csv_odds(row)
+                umaban_num = int(umaban_str) if umaban_str.isdigit() else 1
 
                 key = (date_str, track, rnum)
                 if key not in races_by_key:
@@ -364,6 +429,8 @@ def scan_and_load_all_csvs():
                     ),
                     "馬名": horse_name,
                     "騎手": jockey,
+                    "prize_money": prize_money,
+                    "pop_rank": pop_rank,
                     "raw_csv_odds": raw_csv_odds,
                     "性別": sex,
                     "年齢": age,
@@ -690,7 +757,7 @@ def analyze_horse_enhanced(
 
     current_cls_rank = parse_class_rank(current_race_cond)
 
-    if past_list:
+    if past_list and len(past_list) > 0:
         last_race = past_list[0]
         last_cls_str = last_race.get("クラス", "")
         last_cls_rank = (
@@ -757,7 +824,7 @@ def analyze_horse_enhanced(
 
     curr_dist_num = parse_distance_num(current_race_dist_str)
 
-    if past_list:
+    if past_list and len(past_list) > 0:
         last_dist_num = parse_distance_num(past_list[0].get("距離", ""))
         if curr_dist_num > 0 and last_dist_num > 0:
             diff = curr_dist_num - last_dist_num
@@ -915,7 +982,8 @@ else:
             "騎手": (
                 "武豊" if i == 0 else ("ルメール" if i == 1 else "川田将雅")
             ),
-            "raw_csv_odds": None,
+            "prize_money": 1000.0 if i < 3 else 0.0,
+            "raw_csv_odds": 2.5 if i == 0 else (4.8 if i == 1 else None),
             "性別": "牡",
             "年齢": "3",
             "斤量": "56",
@@ -1002,6 +1070,8 @@ for h_data in current_race_horses:
         "num": umaban,
         "name": horse_name,
         "jockey": h_data.get("騎手", "未定"),
+        "prize_money": h_data.get("prize_money", 0.0),
+        "pop_rank": h_data.get("pop_rank"),
         "raw_csv_odds": h_data.get("raw_csv_odds"),
         "total_score": eval_res["total_score"],
         "real_style": eval_res["real_style"],
@@ -1018,24 +1088,13 @@ for h_data in current_race_horses:
         "class_margin_comment": eval_res["class_margin_comment"],
     })
 
-# --- AIスコアに基づく順位付け ＆ 想定オッズ算出 ---
+# --- AI想定オッズ/確定オッズ適用 ---
+processed_horses = calculate_race_ai_odds(processed_horses)
+
+# --- AIスコアに基づく順位付け ---
 ranked_horses = sorted(
     processed_horses, key=lambda x: x["total_score"], reverse=True
 )
-
-rank_est_odds_table = [
-    2.8, 4.5, 6.8, 9.5, 14.0, 18.5, 24.0, 32.0, 45.0, 60.0, 78.0, 95.0,
-    120.0, 150.0, 200.0, 250.0, 300.0, 350.0
-]
-
-for rank_idx, h in enumerate(ranked_horses):
-    if h["raw_csv_odds"] is not None and h["raw_csv_odds"] > 0:
-        h["odds"] = h["raw_csv_odds"]
-        h["odds_str"] = f"{h['raw_csv_odds']:.1f}倍"
-    else:
-        est_v = rank_est_odds_table[min(rank_idx, len(rank_est_odds_table) - 1)]
-        h["odds"] = est_v
-        h["odds_str"] = f"{est_v:.1f}倍(想定)"
 
 honmei = ranked_horses[0] if len(ranked_horses) > 0 else None
 taikou = ranked_horses[1] if len(ranked_horses) > 1 else None
@@ -1102,12 +1161,14 @@ with tab_rank:
             if horse["up3_flag"] == "キレ味抜群":
                 tags_html += '<span style="background-color:#06b6d4; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">キレ味抜群</span>'
 
+            pop_label = f" ({horse['pop_rank']}人気)" if horse.get('pop_rank') else ""
+
             card_code = f"""
             <div class="horse-card" style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px;">
                 <div style="flex: 1 1 200px; min-width: 180px;">
                     <h4 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 800; color: #1e1b4b;">{crown} {horse['name']}</h4>
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">
-                        枠{horse['waku']} {horse['num']}番 ｜ 騎手: {horse['jockey']} ｜ オッズ: <b>{horse['odds_str']}</b>
+                        枠{horse['waku']} {horse['num']}番 ｜ 騎手: {horse['jockey']} ｜ オッズ: <b>{horse['odds_str']}</b>{pop_label}
                     </div>
                     <div style="font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px;">
                         推定脚質: <b>{horse['real_style']}</b>
@@ -1443,7 +1504,18 @@ with tab_sim:
                         per_pt = math.floor((budget_per_plan / pts) / 100) * 100
                         tot_alloc = per_pt * pts
                         total_points += pts
-                        exp_payout = int(per_pt * max(10.0, (honmei["odds"] * taikou["odds"] * (tanana["odds"] if tanana else 5.0)) ** 0.4))
+                        exp_payout = int(
+                            per_pt
+                            * max(
+                                10.0,
+                                (
+                                    honmei["odds"]
+                                    * taikou["odds"]
+                                    * (tanana["odds"] if tanana else 5.0)
+                                )
+                                ** 0.4,
+                            )
+                        )
                         portfolio_details.append({
                             "plan": "3連複 1頭軸フォーメーション",
                             "points": pts,
@@ -1461,7 +1533,13 @@ with tab_sim:
                         per_pt = math.floor((budget_per_plan / pts) / 100) * 100
                         tot_alloc = per_pt * pts
                         total_points += pts
-                        exp_payout = int(per_pt * max(20.0, (honmei["odds"] * taikou["odds"] * 12.0)))
+                        exp_payout = int(
+                            per_pt
+                            * max(
+                                20.0,
+                                (honmei["odds"] * taikou["odds"] * 12.0),
+                            )
+                        )
                         portfolio_details.append({
                             "plan": "3連単 1・2着固定",
                             "points": pts,
@@ -1474,7 +1552,7 @@ with tab_sim:
                             ),
                         })
 
-                    elif plan == "3連単 軸1頭マルチ":
+                    elif plan in ["3連単 軸1頭マルチ", "3連単 軸1頭マルチ"]:
                         pts = 36
                         per_pt = math.floor((budget_per_plan / pts) / 100) * 100
                         tot_alloc = per_pt * pts
@@ -1499,7 +1577,13 @@ with tab_sim:
                         per_pt = max(100, int(per_pt))
                         tot_alloc = per_pt * pts
                         total_points += pts
-                        exp_payout = int(per_pt * max(25.0, (honmei["odds"] * taikou["odds"] * 8.0)))
+                        exp_payout = int(
+                            per_pt
+                            * max(
+                                25.0,
+                                (honmei["odds"] * taikou["odds"] * 8.0),
+                            )
+                        )
                         portfolio_details.append({
                             "plan": "3連単 軸2頭マルチ",
                             "points": pts,
