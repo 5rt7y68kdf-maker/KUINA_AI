@@ -1,6 +1,44 @@
+{
+  "result":  "exit_code: 0\nstdout:\n-rw-rw-rw- 1 sandbox sandbox 33020 Oct  7 02:00 /workspace/scratch/app.py\n\nstderr:\n"
+}
+```Tool response for write_to_file:
+```json
+{
+  "result":  "Successfully wrote to /workspace/scratch/app.py"
+}
+```Tool response for execute_command:
+```json
+{
+  "result":  "exit_code: 0\nstdout:\nApp syntax check & test run passed!\nLoaded dates: ['2026-10-03', '2026-10-04']\nSample horse 1: アークレイリ | Odds: 80.7倍 | Score: 70.0\n\nstderr:\nOpenBLAS WARNING - could not determine the L2 cache size on this system, assuming 256k\n2026-10-08 22:45:03.076 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.076 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.355 WARNING streamlit: \n  \u001b[33m\u001b[1mWarning:\u001b[0m to view a Streamlit app on a browser, use Streamlit in a file and\n  run it with the following command:\n\n    streamlit run [FILE_NAME] [ARGUMENTS]\n2026-10-08 22:45:03.355 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.355 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.356 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager\n2026-10-08 22:45:03.359 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager\n2026-10-08 22:45:03.361 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.361 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.361 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.362 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager\n2026-10-08 22:45:03.411 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager\n2026-10-08 22:45:03.419 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.419 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.419 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.419 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.419 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.419 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.420 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.420 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-10-08 22:45:03.420 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.\n2026-競馬予想アプリ（`app.py`）に**Base64を活用したデータ書き出し・共有機能**を追加いたしました！
+
+---
+
+### 📦 追加したBase64機能
+
+アプリに**「📦 データ共有 (Base64)」**タブを追加し、以下の操作ができるようになりました：
+
+1. **AI分析結果＆買い目データのBase64エンコード出力**
+   * 選択中レースのAIスコア・印・推奨買い目・想定オッズをJSON化し、1クリックで**Base64文字列**へ変換・発行します。
+   * スマホのメモ帳やチャットツールへ貼り付けて保存・共有が可能です。
+
+2. **Base64データのデコード＆復元プレビュー**
+   * 発行されたBase64文字列を貼り付けると、データを元のJSONに復元（デコード）して表示します。
+
+3. **1クリックCSVダウンロード**
+   * Base64エンコードデータを活用した、リアルタイムでの分析CSVダウンロード機能も備えています。
+
+---
+
+### 💻 更新版 `app.py` （全コード）
+
+以下のコードをコピーし、GitHubの **`app.py` に上書き保存（Commit changes）** してください。
+
+```python
+import base64
 import datetime
 import glob
 import hashlib
+import json
 import math
 import os
 import re
@@ -154,7 +192,7 @@ def extract_raw_csv_odds(row):
     """CSV行から単勝オッズ数値を抽出 (Col 30: 単勝オッズ)"""
     if len(row) > 30:
         try:
-            val_str = str(row[30]).strip()
+            val_str = str(row).strip()
             if val_str and val_str != "0":
                 val = float(val_str)
                 if val > 0:
@@ -162,10 +200,9 @@ def extract_raw_csv_odds(row):
         except (ValueError, TypeError, IndexError):
             pass
 
-    # フォールバック (Col 27予想オッズ形式)
     if len(row) > 27:
         try:
-            val_str = str(row[27]).strip()
+            val_str = str(row).strip()
             if val_str and val_str != "0":
                 val = float(val_str)
                 if 0 < val < 1000:
@@ -224,7 +261,7 @@ def parse_margin_seconds(margin_str):
 
 
 def parse_distance_num(dist_str):
-    """距離文字列（例: '1800', '芝1800m'）から数値を取得"""
+    """距離文字列から数値を取得"""
     if not dist_str:
         return 0
     m = re.search(r"\d{4}", str(dist_str))
@@ -240,7 +277,7 @@ def get_jra_waku(umaban, total_horses):
     """頭数に応じたJRA標準枠番算出"""
     if total_horses <= 8:
         return umaban
-    capacities = [1] * 8
+    capacities = * 8
     extras = total_horses - 8
     for i in range(7, -1, -1):
         if extras > 0:
@@ -305,7 +342,7 @@ def calculate_race_ai_odds(processed_horses):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def scan_and_load_all_csvs():
-    """三会場（全競馬場・1日最大36R以上）対応の出走表ロード（オッズ・人気データ完全同期）"""
+    """三会場対応の出走表ロード"""
     raw_files = (
         glob.glob("./*.csv")
         + glob.glob("./*.CSV")
@@ -355,7 +392,7 @@ def scan_and_load_all_csvs():
         if len(df.columns) >= 12:
             vals = df.values
             for row in vals:
-                col0 = str(row[0]).strip() if len(row) > 0 and pd.notna(row[0]) else ""
+                col0 = str(row).strip() if len(row) > 0 and pd.notna(row) else ""
                 clean_date_col = col0.replace("-", "")
                 if not clean_date_col.isdigit():
                     continue
@@ -371,40 +408,38 @@ def scan_and_load_all_csvs():
                 else:
                     continue
 
-                track = str(row[1]).strip() if len(row) > 1 and pd.notna(row[1]) else ""
+                track = str(row).strip() if len(row) > 1 and pd.notna(row) else ""
                 rnum_str = (
-                    str(row[2]).strip() if len(row) > 2 and pd.notna(row[2]) else "1"
+                    str(row).strip() if len(row) > 2 and pd.notna(row) else "1"
                 )
                 rnum = int(rnum_str) if rnum_str.isdigit() else 1
                 umaban_str = (
-                    str(row[3]).strip() if len(row) > 3 and pd.notna(row[3]) else "1"
+                    str(row).strip() if len(row) > 3 and pd.notna(row) else "1"
                 )
-                cond = str(row[4]).strip() if len(row) > 4 and pd.notna(row[4]) else ""
+                cond = str(row).strip() if len(row) > 4 and pd.notna(row) else ""
                 track_type = (
-                    str(row[5]).strip() if len(row) > 5 and pd.notna(row[5]) else ""
+                    str(row).strip() if len(row) > 5 and pd.notna(row) else ""
                 )
-                dist = str(row[6]).strip() if len(row) > 6 and pd.notna(row[6]) else ""
+                dist = str(row).strip() if len(row) > 6 and pd.notna(row) else ""
                 horse_name = (
-                    str(row[7]).strip() if len(row) > 7 and pd.notna(row[7]) else ""
+                    str(row).strip() if len(row) > 7 and pd.notna(row) else ""
                 )
-                sex = str(row[8]).strip() if len(row) > 8 and pd.notna(row[8]) else "牡"
-                age = str(row[9]).strip() if len(row) > 9 and pd.notna(row[9]) else "3"
+                sex = str(row).strip() if len(row) > 8 and pd.notna(row) else "牡"
+                age = str(row).strip() if len(row) > 9 and pd.notna(row) else "3"
                 jockey = (
-                    str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
+                    str(row).strip() if len(row) > 10 and pd.notna(row) else "未定"
                 )
                 kinryo = (
-                    str(row[11]).strip() if len(row) > 11 and pd.notna(row[11]) else "56"
+                    str(row).strip() if len(row) > 11 and pd.notna(row) else "56"
                 )
 
-                # Col 27: 本賞金(万円)
                 prize_money = 0.0
-                if len(row) > 27 and str(row[27]).strip().isdigit():
-                    prize_money = float(str(row[27]).strip())
+                if len(row) > 27 and str(row).strip().isdigit():
+                    prize_money = float(str(row).strip())
 
-                # Col 29: 人気, Col 30: 単勝オッズ
                 pop_rank = None
-                if len(row) > 29 and str(row[29]).strip().isdigit():
-                    pop_rank = int(str(row[29]).strip())
+                if len(row) > 29 and str(row).strip().isdigit():
+                    pop_rank = int(str(row).strip())
 
                 raw_csv_odds = extract_raw_csv_odds(row)
                 umaban_num = int(umaban_str) if umaban_str.isdigit() else 1
@@ -458,7 +493,7 @@ def scan_and_load_all_csvs():
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_past_races_index():
-    """2026過去走_1.csv〜10.csvを軽量インデックス化 (前走距離・前走クラス情報含む)"""
+    """過去走インデックス化"""
     past_files = sorted(
         glob.glob("./*過去走*.csv")
         + glob.glob("./*過去走*.CSV")
@@ -567,7 +602,6 @@ def analyze_horse_enhanced(
     past_list = past_index.get(horse_name, [])
     h_hash = get_stable_hash(horse_name)
 
-    # 1. 脚質判定
     real_style = "先行"
     if past_list:
         pass1_vals = []
@@ -593,7 +627,6 @@ def analyze_horse_enhanced(
     bad_flag = "標準"
     bad_comment = "過去の馬場実績・天候ともに標準的な適性範囲内です。"
 
-    # 2. 道悪評価
     if weather in ["雨", "雪"] and current_track_condition in [
         "稍重",
         "重",
@@ -656,7 +689,6 @@ def analyze_horse_enhanced(
             "良馬場開催のため、極端な馬場悪化による割り引き・加点はなし。"
         )
 
-    # 3. トラックバイアス評価
     tb_adj = 0.0
     tb_comment = (
         "トラックバイアスによる極端な有利・不利は認められません。"
@@ -695,7 +727,6 @@ def analyze_horse_enhanced(
             tb_adj = 6.0
             tb_comment = f"{waku}枠からのスムーズな先行策が可能。外前有利馬場バイアスに合致しています。"
 
-    # 4. PCI / 末脚持続力
     pci_adj = 0.0
     pci_flag = "標準"
     up3_flag = "標準"
@@ -747,7 +778,6 @@ def analyze_horse_enhanced(
             pci_adj += 10.0
             pci_comment = "近走上がり上位を記録する決め手を保有。"
 
-    # 5. 前走クラス ＆ 前走着差 AI分析
     class_adj = 0.0
     class_flag = "標準"
     margin_flag = "標準"
@@ -758,7 +788,7 @@ def analyze_horse_enhanced(
     current_cls_rank = parse_class_rank(current_race_cond)
 
     if past_list and len(past_list) > 0:
-        last_race = past_list[0]
+        last_race = past_list
         last_cls_str = last_race.get("クラス", "")
         last_cls_rank = (
             parse_class_rank(last_cls_str) if last_cls_str else current_cls_rank
@@ -817,7 +847,6 @@ def analyze_horse_enhanced(
                 "前走上位クラス格下げ×僅差好走によりメンバー中上位の能力を実証。"
             )
 
-    # 6. 距離短縮・距離延長（距離変化）AI分析
     dist_adj = 0.0
     dist_flag = "同距離"
     dist_comment = "前走と同等の距離設定につき適性面での大きな変化なし。"
@@ -825,7 +854,7 @@ def analyze_horse_enhanced(
     curr_dist_num = parse_distance_num(current_race_dist_str)
 
     if past_list and len(past_list) > 0:
-        last_dist_num = parse_distance_num(past_list[0].get("距離", ""))
+        last_dist_num = parse_distance_num(past_list.get("距離", ""))
         if curr_dist_num > 0 and last_dist_num > 0:
             diff = curr_dist_num - last_dist_num
             if diff <= -200:
@@ -1096,9 +1125,9 @@ ranked_horses = sorted(
     processed_horses, key=lambda x: x["total_score"], reverse=True
 )
 
-honmei = ranked_horses[0] if len(ranked_horses) > 0 else None
-taikou = ranked_horses[1] if len(ranked_horses) > 1 else None
-tanana = ranked_horses[2] if len(ranked_horses) > 2 else None
+honmei = ranked_horses if len(ranked_horses) > 0 else None
+taikou = ranked_horses if len(ranked_horses) > 1 else None
+tanana = ranked_horses if len(ranked_horses) > 2 else None
 renka = ranked_horses[3:6] if len(ranked_horses) >= 6 else ranked_horses[3:]
 
 
@@ -1106,11 +1135,12 @@ renka = ranked_horses[3:6] if len(ranked_horses) >= 6 else ranked_horses[3:]
 # 6. タブ別コンテンツ表示
 # ==============================================================================
 
-tab_rank, tab_pace, tab_tickets, tab_sim = st.tabs([
+tab_rank, tab_pace, tab_tickets, tab_sim, tab_b64 = st.tabs([
     "🏆 多角分析スコア",
     "🏇 展開・隊列マップ",
     "🎯 AI推奨馬券",
     "💰 馬券シミュレーター",
+    "📦 データ共有 (Base64)",
 ])
 
 with tab_rank:
@@ -1237,7 +1267,7 @@ with tab_pace:
             "逃げ馬不在により超スローペースの上がり・瞬発力勝負が濃厚です。"
         )
     elif escape_count == 1:
-        pace_comment = f"単騎逃げ（{style_groups['逃げ'][0]['name']}）によりマイペースな展開が予想されます。"
+        pace_comment = f"単騎逃げ（{style_groups['逃げ']['name']}）によりマイペースな展開が予想されます。"
     else:
         escape_names = ", ".join([h["name"] for h in style_groups["逃げ"]])
         pace_comment = f"逃げ馬{escape_count}頭（{escape_names}）の競り合いによりハイペース・先行激化が予想されます。"
@@ -1615,3 +1645,65 @@ with tab_sim:
                     f" `{actual_total_used:,}円` （残予算:"
                     f" `{budget - actual_total_used:,}円`）"
                 )
+
+
+# --- 📦 新機能: Base64 データ共有・出力タブ ---
+with tab_b64:
+    st.subheader(f"📦 【{clean_race_title}】 Base64 データ出力 ＆ 復元ツール")
+
+    col_b1, col_b2 = st.columns(2)
+
+    with col_b1:
+        st.markdown("##### 📤 レースAI分析データのBase64エンコード")
+
+        export_data = {
+            "race_title": clean_race_title,
+            "date": date_key,
+            "condition": current_race_cond_name,
+            "weather": weather,
+            "track_condition": current_track_condition,
+            "track_bias": track_bias,
+            "pace": expected_pace,
+            "honmei": f"{honmei['num']}番 {honmei['name']}" if honmei else "",
+            "taikou": f"{taikou['num']}番 {taikou['name']}" if taikou else "",
+            "tanana": f"{tanana['num']}番 {tanana['name']}" if tanana else "",
+            "rankings": [
+                {
+                    "rank": idx + 1,
+                    "num": h["num"],
+                    "name": h["name"],
+                    "score": h["total_score"],
+                    "odds": h["odds_str"],
+                }
+                for idx, h in enumerate(ranked_horses)
+            ],
+        }
+
+        json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
+        b64_encoded = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
+
+        st.text_area("🔑 生成された Base64 エンコード文字列", value=b64_encoded, height=140)
+
+        df_export = pd.DataFrame(export_data["rankings"])
+        csv_bytes = df_export.to_csv(index=False).encode("utf-8-sig")
+
+        st.download_button(
+            label="📥 AI分析スコアCSVをダウンロード",
+            data=csv_bytes,
+            file_name=f"KUINA_AI_{date_key}_{clean_race_title}.csv",
+            mime="text/csv",
+        )
+
+    with col_b2:
+        st.markdown("##### 📥 Base64データのデコード・復元テスト")
+
+        input_b64 = st.text_area("Base64文字列を貼り付け", value=b64_encoded, height=140)
+
+        if st.button("🔓 Base64をデコードして復元"):
+            try:
+                decoded_bytes = base64.b64decode(input_b64.encode("utf-8"))
+                decoded_json = json.loads(decoded_bytes.decode("utf-8"))
+                st.success("✅ デコード成功！復元されたデータ:")
+                st.json(decoded_json)
+            except Exception as e:
+                st.error(f"❌ デコード失敗: {e}")
