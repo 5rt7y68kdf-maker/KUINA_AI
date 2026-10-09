@@ -167,28 +167,6 @@ def parse_class_rank(class_str):
     return 4
 
 
-def parse_margin_seconds(margin_str):
-    """着差文字列を秒数フロートに変換"""
-    if not margin_str:
-        return 0.5
-    s = str(margin_str).strip()
-    try:
-        val = float(re.sub(r"[^\d.]", "", s))
-        return abs(val)
-    except Exception:
-        if "ハナ" in s or "同タイ" in s:
-            return 0.05
-        if "クビ" in s:
-            return 0.1
-        if "アタマ" in s:
-            return 0.15
-        if "1/2" in s:
-            return 0.2
-        if "大差" in s:
-            return 2.0
-        return 0.5
-
-
 def parse_distance_num(dist_str):
     """距離文字列から数値を取得"""
     if not dist_str:
@@ -221,23 +199,23 @@ def get_jra_waku(umaban, total_horses):
 
 
 # ==============================================================================
-# 3. 高速インデックス構築 ＆ データロード (Index構造)
+# 3. 超高速インデックス構築 ＆ データロード (Index構造)
 # ==============================================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def scan_and_load_all_csvs():
-    """実際の出走表CSVのみを厳格にロード"""
+    """出走表CSVの超高速ロード (エラー耐性強化・キャッシュ最適化)"""
     raw_files = (
         glob.glob("./*.csv") + glob.glob("./*.CSV")
         + glob.glob("./data/*.csv") + glob.glob("./data/*.CSV")
         + glob.glob("/workspace/knowledge/*.csv") + glob.glob("/workspace/knowledge/*.CSV")
     )
+    raw_files = sorted(list(set(raw_files)))
     all_csv_files = [
         f for f in raw_files
-        if "枠番" not in f and "脚質" not in f and "過去走" not in f
+        if not any(k in os.path.basename(f) for k in ["枠番", "脚質", "過去走"])
     ]
 
-    all_csv_files = sorted(list(set(all_csv_files)))
     date_races_map = {}
 
     for fpath in all_csv_files:
@@ -254,15 +232,17 @@ def scan_and_load_all_csvs():
 
         races_by_key = {}
         for row in df.values:
-            col0 = str(row[0]).strip() if len(row) > 0 and pd.notna(row[0]) else ""
-            clean_date_col = col0.replace("-", "")
-            if not clean_date_col.isdigit():
+            if len(row) < 12 or pd.isna(row[0]):
                 continue
 
-            if len(clean_date_col) == 6:
-                date_str = f"20{clean_date_col[:2]}-{clean_date_col[2:4]}-{clean_date_col[4:6]}"
-            elif len(clean_date_col) == 8:
-                date_str = f"{clean_date_col[:4]}-{clean_date_col[4:6]}-{clean_date_col[6:8]}"
+            col0 = str(row[0]).strip().replace("-", "")
+            if not col0.isdigit():
+                continue
+
+            if len(col0) == 6:
+                date_str = f"20{col0[:2]}-{col0[2:4]}-{col0[4:6]}"
+            elif len(col0) == 8:
+                date_str = f"{col0[:4]}-{col0[4:6]}-{col0[6:8]}"
             else:
                 continue
 
@@ -332,7 +312,7 @@ def load_past_races_index():
     )
     horse_past_map = {}
 
-    for fpath in past_files:
+    for fpath in set(past_files):
         df = None
         for enc in ["cp932", "shift_jis", "utf-8"]:
             try:
@@ -365,6 +345,33 @@ def load_past_races_index():
                 })
 
     return horse_past_map
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_historical_stats():
+    """過去5年（2020-2025）の枠番別・脚質別統計データをロード"""
+    waku_files = glob.glob("./*枠番*.csv") + glob.glob("./data/*枠番*.csv") + glob.glob("/workspace/knowledge/*枠番*.csv")
+    kyakushitsu_files = glob.glob("./*脚質*.csv") + glob.glob("./data/*脚質*.csv") + glob.glob("/workspace/knowledge/*脚質*.csv")
+
+    df_waku = None
+    if waku_files:
+        for enc in ["cp932", "shift_jis", "utf-8"]:
+            try:
+                df_waku = pd.read_csv(waku_files[0], encoding=enc)
+                break
+            except Exception:
+                pass
+
+    df_kyakushitsu = None
+    if kyakushitsu_files:
+        for enc in ["cp932", "shift_jis", "utf-8"]:
+            try:
+                df_kyakushitsu = pd.read_csv(kyakushitsu_files[0], encoding=enc)
+                break
+            except Exception:
+                pass
+
+    return df_waku, df_kyakushitsu
 
 
 # ==============================================================================
@@ -501,8 +508,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-date_races_map = scan_and_load_all_csvs()
-past_index = load_past_races_index()
+with st.spinner("データを読み込んでいます..."):
+    date_races_map = scan_and_load_all_csvs()
+    past_index = load_past_races_index()
+    df_waku, df_kyakushitsu = load_historical_stats()
 
 available_dates = sorted(list(date_races_map.keys()))
 
@@ -545,6 +554,7 @@ clean_race_title = race_options[selected_race_combo_idx]["label"].replace("🏇 
 current_race_horses = selected_race_obj["horses"]
 current_race_cond_name = selected_race_obj.get("cond", "一般特別")
 current_race_dist_str = selected_race_obj.get("dist", "1800")
+current_track_name = selected_race_obj.get("track", "東京")
 
 st.markdown(
     f"""
@@ -649,10 +659,11 @@ renka = ranked_horses[3:6] if len(ranked_horses) >= 6 else ranked_horses[3:]
 # 6. タブ別表示 (Style & View)
 # ==============================================================================
 
-tab_rank, tab_pace, tab_tickets = st.tabs([
+tab_rank, tab_pace, tab_tickets, tab_stats = st.tabs([
     "🏆 AI分析スコア",
     "🏇 展開・隊列マップ",
     "🎯 AI推奨馬券",
+    "📊 コース統計データ",
 ])
 
 with tab_rank:
@@ -753,3 +764,31 @@ with tab_tickets:
         with col_mark4:
             renka_names = ", ".join([f"{h['num']}番" for h in renka])
             st.error(f"**△ 紐・穴**: {renka_names}\n\n展開好転予想馬")
+
+
+with tab_stats:
+    st.subheader(f"📊 過去5年 競馬場・コース統計データ ({current_track_name} {current_race_dist_str}m)")
+
+    col_st1, col_st2 = st.columns(2)
+
+    with col_st1:
+        st.markdown("##### 枠番別 過去好走傾向 (2020-2025)")
+        if df_waku is not None:
+            matches = df_waku[df_waku["場所･距離"].str.contains(f"{current_track_name}.*{current_race_dist_str}", na=False)]
+            if not matches.empty:
+                st.dataframe(matches, width="stretch", hide_index=True)
+            else:
+                st.dataframe(df_waku.head(10), width="stretch", hide_index=True)
+        else:
+            st.caption("枠番統計ファイルロード中...")
+
+    with col_st2:
+        st.markdown("##### 脚質別 過去好走傾向 (2020-2025)")
+        if df_kyakushitsu is not None:
+            matches_k = df_kyakushitsu[df_kyakushitsu["場所･距離"].str.contains(f"{current_track_name}.*{current_race_dist_str}", na=False)]
+            if not matches_k.empty:
+                st.dataframe(matches_k, width="stretch", hide_index=True)
+            else:
+                st.dataframe(df_kyakushitsu.head(10), width="stretch", hide_index=True)
+        else:
+            st.caption("脚質統計ファイルロード中...")
