@@ -206,7 +206,7 @@ def get_jra_waku(umaban, total_horses):
     """頭数に応じたJRA標準枠番算出"""
     if total_horses <= 8:
         return umaban
-    capacities = [1] * 8
+    capacities = [1, 1, 1, 1, 1, 1, 1, 1]
     extras = total_horses - 8
     for i in range(7, -1, -1):
         if extras > 0:
@@ -254,7 +254,7 @@ def scan_and_load_all_csvs():
 
         races_by_key = {}
         for row in df.values:
-            col0 = str(row[0]).strip() if pd.notna(row[0]) else ""
+            col0 = str(row).strip() if pd.notna(row) else ""
             clean_date_col = col0.replace("-", "")
             if not clean_date_col.isdigit():
                 continue
@@ -266,22 +266,22 @@ def scan_and_load_all_csvs():
             else:
                 continue
 
-            track = str(row[1]).strip() if len(row) > 1 and pd.notna(row[1]) else ""
-            rnum_str = str(row[2]).strip() if len(row) > 2 and pd.notna(row[2]) else "1"
+            track = str(row).strip() if len(row) > 1 and pd.notna(row) else ""
+            rnum_str = str(row).strip() if len(row) > 2 and pd.notna(row) else "1"
             rnum = int(rnum_str) if rnum_str.isdigit() else 1
-            umaban_str = str(row[3]).strip() if len(row) > 3 and pd.notna(row[3]) else "1"
-            cond = str(row[4]).strip() if len(row) > 4 and pd.notna(row[4]) else ""
-            track_type = str(row[5]).strip() if len(row) > 5 and pd.notna(row[5]) else ""
-            dist = str(row[6]).strip() if len(row) > 6 and pd.notna(row[6]) else ""
-            horse_name = str(row[7]).strip() if len(row) > 7 and pd.notna(row[7]) else ""
-            jockey = str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
+            umaban_str = str(row).strip() if len(row) > 3 and pd.notna(row) else "1"
+            cond = str(row).strip() if len(row) > 4 and pd.notna(row) else ""
+            track_type = str(row).strip() if len(row) > 5 and pd.notna(row) else ""
+            dist = str(row).strip() if len(row) > 6 and pd.notna(row) else ""
+            horse_name = str(row).strip() if len(row) > 7 and pd.notna(row) else ""
+            jockey = str(row).strip() if len(row) > 10 and pd.notna(row) else "未定"
 
             if not horse_name:
                 continue
 
             prize_money = 0.0
-            if len(row) > 27 and str(row[27]).strip().isdigit():
-                prize_money = float(str(row[27]).strip())
+            if len(row) > 27 and str(row).strip().isdigit():
+                prize_money = float(str(row).strip())
 
             umaban_num = int(umaban_str) if umaban_str.isdigit() else 1
 
@@ -458,7 +458,7 @@ def analyze_horse_with_index(
     curr_dist_num = parse_distance_num(current_race_dist_str)
 
     if past_list and len(past_list) > 0:
-        last_dist_num = parse_distance_num(past_list[0].get("距離", ""))
+        last_dist_num = parse_distance_num(past_list.get("距離", ""))
         if curr_dist_num > 0 and last_dist_num > 0:
             diff = curr_dist_num - last_dist_num
             if diff <= -200:
@@ -639,9 +639,9 @@ ranked_horses = sorted(
     processed_horses, key=lambda x: x["total_score"], reverse=True
 )
 
-honmei = ranked_horses[0] if len(ranked_horses) > 0 else None
-taikou = ranked_horses[1] if len(ranked_horses) > 1 else None
-tanana = ranked_horses[2] if len(ranked_horses) > 2 else None
+honmei = ranked_horses if len(ranked_horses) > 0 else None
+taikou = ranked_horses if len(ranked_horses) > 1 else None
+tanana = ranked_horses if len(ranked_horses) > 2 else None
 renka = ranked_horses[3:6] if len(ranked_horses) >= 6 else ranked_horses[3:]
 
 
