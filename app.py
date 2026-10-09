@@ -94,6 +94,30 @@ st.markdown(
         margin-bottom: 6px;
         line-height: 1.5;
     }
+    .horse-legend-item {
+        display: inline-flex;
+        align-items: center;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 4px 10px;
+        margin: 3px;
+        font-size: 12px;
+        font-weight: 700;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .waku-badge {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        font-size: 11px;
+        margin-right: 6px;
+        border: 1px solid rgba(0,0,0,0.15);
+    }
     @media (max-width: 768px) {
         .kuina-header { padding: 16px 18px; border-radius: 12px; }
         .kuina-header h1 { font-size: 20px; }
@@ -338,7 +362,7 @@ def load_past_races_index():
 
 
 # ==============================================================================
-# 4. AI解析 ＆ 隊列グラフィック生成エンジン
+# 4. AI解析 ＆ 隊列グラフィック生成エンジン (ホットスポット＆文字化け完全防止)
 # ==============================================================================
 
 def analyze_horse_with_index(
@@ -454,47 +478,77 @@ def analyze_horse_with_index(
     }
 
 
-def render_pace_map_graphic(processed_horses, race_title):
-    """隊列グラフィック（画像）の描画生成"""
-    fig, ax = plt.subplots(figsize=(12, 4.5), dpi=150)
-    fig.patch.set_facecolor('#0f172a')
-    ax.set_facecolor('#1e293b')
+def render_pace_map_graphic_advanced(processed_horses, race_title, track_type, track_bias):
+    """
+    芝・ダート動的背景 × バイアス・ホットスポット輝きオーバーレイ × 文字化けフリー隊列マップ
+    """
+    fig, ax = plt.subplots(figsize=(12, 4.8), dpi=150)
 
-    # 背景トラックライン
-    ax.axhline(0, color='#334155', linewidth=2, linestyle='--')
-    ax.axhline(1.5, color='#334155', linewidth=1, linestyle=':')
-    ax.axhline(-1.5, color='#334155', linewidth=1, linestyle=':')
+    # 芝 vs ダート 背景色切り替え
+    is_dirt = "ダ" in str(track_type) or "ダート" in str(track_type)
+    bg_dark = '#381c0d' if is_dirt else '#064e3b'      # 全体外枠
+    track_dark = '#542d17' if is_dirt else '#0f766e'   # コース面
+    lane_color = '#78350f' if is_dirt else '#14b8a6'   # レーンライン
 
-    # 進行方向矢印
+    fig.patch.set_facecolor(bg_dark)
+    ax.set_facecolor(track_dark)
+
+    # 背景レーンライン
+    ax.axhline(0, color=lane_color, linewidth=1.5, linestyle='--')
+    ax.axhline(1.5, color=lane_color, linewidth=1, linestyle=':')
+    ax.axhline(-1.5, color=lane_color, linewidth=1, linestyle=':')
+
+    # 進行方向
     ax.annotate(
-        "← 進行方向 (ゴール)",
+        "<- FINISH / GOAL",
         xy=(0.5, 2.3),
         xytext=(3.5, 2.3),
-        arrowprops=dict(facecolor='#a5f3fc', edgecolor='#a5f3fc', width=2, headwidth=8),
+        arrowprops=dict(facecolor='#fef08a', edgecolor='#fef08a', width=2, headwidth=8),
         fontsize=11,
         fontweight='bold',
-        color='#a5f3fc',
+        color='#fef08a',
         ha='left'
     )
 
-    # ゾーン区分 (逃げ, 先行, 差し, 追込)
+    # 脚質ゾーン
     zones = [
-        ("🏃 逃げ (先頭)", 0.5, 2.5, '#ef4444'),
-        ("🐎 先行 (好位)", 3.0, 5.5, '#f59e0b'),
-        ("🐎 差し (中団)", 6.0, 8.5, '#10b981'),
-        ("🐎 追込 (後方)", 9.0, 11.5, '#6366f1'),
+        ("NIGE (FRONT)", 0.3, 2.7, '#f87171'),
+        ("SENKO (PACE)", 3.0, 5.7, '#fbbf24'),
+        ("SASHI (MID)", 6.0, 8.7, '#34d399'),
+        ("OIKOMI (BACK)", 9.0, 11.7, '#818cf8'),
     ]
 
     for ztitle, xmin, xmax, zcolor in zones:
-        rect = patches.Rectangle((xmin, -2.2), xmax - xmin, 4.2, linewidth=0, facecolor=zcolor, alpha=0.08)
+        rect = patches.Rectangle((xmin, -2.2), xmax - xmin, 4.2, linewidth=0, facecolor=zcolor, alpha=0.1)
         ax.add_patch(rect)
         ax.text((xmin + xmax)/2, -2.0, ztitle, color=zcolor, fontsize=10, fontweight='bold', ha='center')
 
+    # トラックバイアスのホットスポット (HOT BIAS ZONE) 輝きオーバーレイ
+    hot_rects = []
+    if "イン伸び" in track_bias or "内前" in track_bias:
+        hot_rects.append((0.3, 5.7, 0.2, 1.8, "★ HOT BIAS ZONE (内・前有利)"))
+    elif "外差し" in track_bias or "外伸び" in track_bias:
+        hot_rects.append((6.0, 11.7, -1.8, 1.8, "★ HOT BIAS ZONE (外・差し有利)"))
+    elif "前残り" in track_bias or "逃げ" in track_bias:
+        hot_rects.append((0.3, 2.7, -1.8, 1.8, "★ HOT BIAS ZONE (逃げ・前残り絶好)"))
+    elif "前崩れ" in track_bias or "差し必至" in track_bias:
+        hot_rects.append((6.0, 11.7, -1.8, 1.8, "★ HOT BIAS ZONE (ハイペース・差し爆発)"))
+
+    for xmin, xmax, ymin, ymax, label_text in hot_rects:
+        # ゴールドネオンのホットスポット描画
+        hot_box = patches.FancyBboxPatch(
+            (xmin, ymin), xmax - xmin, ymax - ymin,
+            boxstyle="round,pad=0.1,rounding_size=0.2",
+            facecolor='#fbbf24', edgecolor='#fef08a', linewidth=2.5, alpha=0.35, zorder=2
+        )
+        ax.add_patch(hot_box)
+
+    # 各馬の配置 (数字バッジ化で文字化けを完全回避)
     style_x_offsets = {
-        "逃げ": (0.8, 2.2),
-        "先行": (3.3, 5.2),
-        "差し": (6.3, 8.2),
-        "追込": (9.3, 11.2),
+        "逃げ": (0.6, 2.4),
+        "先行": (3.3, 5.4),
+        "差し": (6.3, 8.4),
+        "追込": (9.3, 11.4),
     }
 
     style_counts = {"逃げ": 0, "先行": 0, "差し": 0, "追込": 0}
@@ -503,28 +557,27 @@ def render_pace_map_graphic(processed_horses, race_title):
         style = horse["real_style"]
         waku = horse["waku"]
         num = horse["num"]
-        name = horse["name"]
 
         bg_col, text_col = WAKU_COLOR_MAP.get(waku, ("#ffffff", "#000000"))
-        xmin, xmax = style_x_offsets.get(style, (3.3, 5.2))
+        xmin, xmax = style_x_offsets.get(style, (3.3, 5.4))
         cnt = style_counts[style]
 
         x_pos = xmin + (cnt % 2) * 1.1
         y_pos = 1.2 - (cnt // 2) * 0.9 if cnt < 4 else -1.2 + (cnt % 2) * 0.6
         style_counts[style] += 1
 
-        # 馬バッジ描画
-        badge = patches.FancyBboxPatch(
-            (x_pos - 0.45, y_pos - 0.3), 0.9, 0.6,
-            boxstyle="round,pad=0.1,rounding_size=0.15",
-            facecolor=bg_col, edgecolor='#64748b', linewidth=1.2
+        # 馬番バッジ
+        circle = patches.Circle(
+            (x_pos, y_pos), 0.38,
+            facecolor=bg_col, edgecolor='#f8fafc', linewidth=1.8, zorder=4
         )
-        ax.add_patch(badge)
+        ax.add_patch(circle)
 
+        # 馬番数値 (ASCII数値のため文字化けの恐れゼロ)
         ax.text(
-            x_pos, y_pos, f"{num}.{name[:4]}",
-            color=text_col, fontsize=9, fontweight='bold',
-            ha='center', va='center'
+            x_pos, y_pos, str(num),
+            color=text_col, fontsize=12, fontweight='bold',
+            ha='center', va='center', zorder=5
         )
 
     ax.set_xlim(-0.2, 12.2)
@@ -592,7 +645,7 @@ clean_race_title = race_options[selected_race_combo_idx]["label"].replace("🏇 
 current_race_horses = selected_race_obj["horses"]
 current_race_cond_name = selected_race_obj.get("cond", "一般特別")
 current_race_dist_str = selected_race_obj.get("dist", "1800")
-current_track_name = selected_race_obj.get("track", "東京")
+current_track_type = selected_race_obj.get("track_type", "芝")
 
 st.markdown(
     f"""
@@ -751,8 +804,26 @@ with tab_rank:
 
 with tab_pace:
     st.subheader(f"🏇 【{clean_race_title}】 展開・推定隊列グラフィック")
-    fig = render_pace_map_graphic(processed_horses, clean_race_title)
+
+    fig = render_pace_map_graphic_advanced(processed_horses, clean_race_title, current_track_type, track_bias)
     st.pyplot(fig, use_container_width=True)
+    plt.close(fig)
+
+    st.markdown("##### 📋 出走馬 枠色連動インデックス")
+
+    legend_html_items = []
+    for h in sorted(processed_horses, key=lambda x: x["num"]):
+        bg_col, text_col = WAKU_COLOR_MAP.get(h["waku"], ("#ffffff", "#000000"))
+        item_code = f"""
+        <div class="horse-legend-item">
+            <span class="waku-badge" style="background-color: {bg_col}; color: {text_col};">{h['num']}</span>
+            <span>{h['name']}</span>
+            <span style="color:#64748b; font-size:11px; margin-left:4px;">({h['jockey']})</span>
+        </div>
+        """
+        legend_html_items.append(item_code)
+
+    st.markdown('<div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px;">' + "".join(legend_html_items) + '</div>', unsafe_allow_html=True)
 
 
 with tab_tickets:
