@@ -124,6 +124,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# ==============================================================================
+# 2. ユーティリティ ＆ パース関数
+# ==============================================================================
 
 def parse_class_rank(class_str):
     s = str(class_str)
@@ -176,6 +179,10 @@ def get_jra_waku(umaban, total_horses):
         curr += cap
     return 8
 
+
+# ==============================================================================
+# 3. 超高速インデックス構築 ＆ データロード (Index構造)
+# ==============================================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def scan_and_load_all_csvs():
@@ -350,6 +357,10 @@ def load_historical_stats():
     return df_waku, df_kyakushitsu
 
 
+# ==============================================================================
+# 4. インデックス参照型 AI解析エンジン
+# ==============================================================================
+
 def analyze_horse_with_index(
     horse_name,
     umaban,
@@ -463,6 +474,10 @@ def analyze_horse_with_index(
     }
 
 
+# ==============================================================================
+# 5. メイン画面 UI構築
+# ==============================================================================
+
 st.markdown(
     """
 <div class="kuina-header">
@@ -573,6 +588,7 @@ with col_env4:
 
 st.divider()
 
+# --- インデックス参照型 全馬スコア演算 ---
 processed_horses = []
 
 for h_data in current_race_horses:
@@ -618,6 +634,10 @@ taikou = ranked_horses[1] if len(ranked_horses) > 1 else None
 tanana = ranked_horses[2] if len(ranked_horses) > 2 else None
 renka = ranked_horses[3:6] if len(ranked_horses) >= 6 else ranked_horses[3:]
 
+
+# ==============================================================================
+# 6. タブ別表示 (Style & View)
+# ==============================================================================
 
 tab_rank, tab_pace, tab_tickets, tab_stats = st.tabs([
     "🏆 AI分析スコア",
