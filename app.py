@@ -22,13 +22,13 @@ def base44_encode(data_bytes: bytes) -> str:
         return ""
     num = int.from_bytes(data_bytes, "big")
     if num == 0:
-        return BASE44_ALPHABET[0]
+        return BASE44_ALPHABET
     res = []
     while num > 0:
         num, rem = divmod(num, 44)
         res.append(BASE44_ALPHABET[rem])
     n_zeros = len(data_bytes) - len(data_bytes.lstrip(b"\x00"))
-    return (BASE44_ALPHABET[0] * n_zeros) + "".join(reversed(res))
+    return (BASE44_ALPHABET * n_zeros) + "".join(reversed(res))
 
 
 def base44_decode(b44_str: str) -> bytes:
@@ -42,7 +42,7 @@ def base44_decode(b44_str: str) -> bytes:
             raise ValueError(f"無効なBase44文字が含まれています: '{char}'")
         idx = BASE44_ALPHABET.index(char)
         num = num * 44 + idx
-    n_zeros = len(clean_str) - len(clean_str.lstrip(BASE44_ALPHABET[0]))
+    n_zeros = len(clean_str) - len(clean_str.lstrip(BASE44_ALPHABET))
     length = (num.bit_length() + 7) // 8 if num > 0 else 0
     return (b"\x00" * n_zeros) + num.to_bytes(length, "big")
 
@@ -337,13 +337,13 @@ def calculate_race_ai_odds(processed_horses):
 
 
 # ==============================================================================
-# 3. 超軽量データロード (三会場対応 ＆ 過去走10ファイル最適化)
+# 3. 超軽量データロード (実データ限定)
 # ==============================================================================
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def scan_and_load_all_csvs():
-    """三会場対応の出走表ロード"""
+    """実際の出走表CSVのみを厳格にロード"""
     raw_files = (
         glob.glob("./*.csv")
         + glob.glob("./*.CSV")
@@ -393,7 +393,7 @@ def scan_and_load_all_csvs():
         if len(df.columns) >= 12:
             vals = df.values
             for row in vals:
-                col0 = str(row[0]).strip() if len(row) > 0 and pd.notna(row[0]) else ""
+                col0 = str(row[0]).strip() if pd.notna(row[0]) else ""
                 clean_date_col = col0.replace("-", "")
                 if not clean_date_col.isdigit():
                     continue
@@ -410,29 +410,20 @@ def scan_and_load_all_csvs():
                     continue
 
                 track = str(row[1]).strip() if len(row) > 1 and pd.notna(row[1]) else ""
-                rnum_str = (
-                    str(row[2]).strip() if len(row) > 2 and pd.notna(row[2]) else "1"
-                )
+                rnum_str = str(row[2]).strip() if len(row) > 2 and pd.notna(row[2]) else "1"
                 rnum = int(rnum_str) if rnum_str.isdigit() else 1
-                umaban_str = (
-                    str(row[3]).strip() if len(row) > 3 and pd.notna(row[3]) else "1"
-                )
+                umaban_str = str(row[3]).strip() if len(row) > 3 and pd.notna(row[3]) else "1"
                 cond = str(row[4]).strip() if len(row) > 4 and pd.notna(row[4]) else ""
-                track_type = (
-                    str(row[5]).strip() if len(row) > 5 and pd.notna(row[5]) else ""
-                )
+                track_type = str(row[5]).strip() if len(row) > 5 and pd.notna(row[5]) else ""
                 dist = str(row[6]).strip() if len(row) > 6 and pd.notna(row[6]) else ""
-                horse_name = (
-                    str(row[7]).strip() if len(row) > 7 and pd.notna(row[7]) else ""
-                )
+                horse_name = str(row[7]).strip() if len(row) > 7 and pd.notna(row[7]) else ""
                 sex = str(row[8]).strip() if len(row) > 8 and pd.notna(row[8]) else "牡"
                 age = str(row[9]).strip() if len(row) > 9 and pd.notna(row[9]) else "3"
-                jockey = (
-                    str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
-                )
-                kinryo = (
-                    str(row[11]).strip() if len(row) > 11 and pd.notna(row[11]) else "56"
-                )
+                jockey = str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
+                kinryo = str(row[11]).strip() if len(row) > 11 and pd.notna(row[11]) else "56"
+
+                if not horse_name:
+                    continue
 
                 prize_money = 0.0
                 if len(row) > 27 and str(row[27]).strip().isdigit():
@@ -923,69 +914,36 @@ st.markdown(
 date_races_map = scan_and_load_all_csvs()
 past_index = load_past_races_index()
 
-st.markdown("##### 🔍 レース検索 (三会場完全対応)")
+available_dates = sorted(list(date_races_map.keys()))
+
+st.markdown("##### 🔍 レース検索 (CSV実データ限定)")
+
+if not available_dates:
+    st.error("⚠️ 読み込める出走表CSV（20261003.csvなど）が見つかりません。ファイルを配備してください。")
+    st.stop()
+
 col_search_date, col_search_race = st.columns([1.2, 2.8])
 
-available_dates = sorted(list(date_races_map.keys())) if date_races_map else []
-
-default_date = (
-    datetime.date(2026, 10, 4)
-    if "2026-10-04" in available_dates
-    else (
-        datetime.datetime.strptime(available_dates[-1], "%Y-%m-%d").date()
-        if available_dates
-        else datetime.date(2026, 10, 4)
-    )
-)
-
 with col_search_date:
-    selected_date = st.date_input(
-        "📅 日付選択",
-        value=default_date,
-        min_value=datetime.date(2020, 1, 1),
-        max_value=datetime.date(2030, 12, 31),
+    selected_date_str = st.selectbox(
+        "📅 開催日を選択",
+        available_dates,
+        index=len(available_dates) - 1,
     )
 
-date_key = selected_date.strftime("%Y-%m-%d")
-races_for_date = date_races_map.get(date_key, [])
+races_for_date = date_races_map.get(selected_date_str, [])
 
 race_options = []
-if races_for_date:
-    for idx, r in enumerate(races_for_date):
-        label = (
-            f"🏇 【{r['track']}】 {r['rnum']}R {r['cond']} "
-            f"[{r['track_type']}{r['dist']}m] ({len(r['horses'])}頭立)"
-        )
-        race_options.append({"idx": idx, "label": label, "data": r})
-else:
-    demo_r1 = {
-        "track": "東京",
-        "rnum": 11,
-        "cond": "毎日王冠G2",
-        "track_type": "芝",
-        "dist": "1800",
-        "horses": [],
-    }
-    demo_r2 = {
-        "track": "京都",
-        "rnum": 11,
-        "cond": "京都大賞G2",
-        "track_type": "芝",
-        "dist": "2400",
-        "horses": [],
-    }
-    race_options = [
-        {
-            "idx": 0,
-            "label": "🏇 【東京】 11R 毎日王冠G2 [芝1800m] (17頭立) デモ",
-            "data": demo_r1,
-        },
-        {
-            "idx": 1,
-            "label": "🏇 【京都】 11R 京都大賞G2 [芝2400m] (18頭立) デモ",
-            "data": demo_r2,
-        },
-    ]
+for idx, r in enumerate(races_for_date):
+    label = (
+        f"🏇 【{r['track']}】 {r['rnum']}R {r['cond']} "
+        f"[{r['track_type']}{r['dist']}m] ({len(r['horses'])}頭立)"
+    )
+    race_options.append({"idx": idx, "label": label, "data": r})
+
+if not race_options:
+    st.warning("⚠️ 選択した開催日のレースデータがありません。")
+    st.stop()
 
 with col_search_race:
     selected_race_combo_idx = st.selectbox(
@@ -996,30 +954,7 @@ with col_search_race:
 
 selected_race_obj = race_options[selected_race_combo_idx]["data"]
 display_label = race_options[selected_race_combo_idx]["label"]
-
-if (
-    selected_race_obj
-    and "horses" in selected_race_obj
-    and selected_race_obj["horses"]
-):
-    current_race_horses = selected_race_obj["horses"]
-else:
-    current_race_horses = [
-        {
-            "枠番": (i % 8) + 1,
-            "馬番": i + 1,
-            "馬名": f"デモホース{i+1}",
-            "騎手": (
-                "武豊" if i == 0 else ("ルメール" if i == 1 else "川田将雅")
-            ),
-            "prize_money": 1000.0 if i < 3 else 0.0,
-            "raw_csv_odds": 2.5 if i == 0 else (4.8 if i == 1 else None),
-            "性別": "牡",
-            "年齢": "3",
-            "斤量": "56",
-        }
-        for i in range(15)
-    ]
+current_race_horses = selected_race_obj["horses"]
 
 clean_race_title = display_label.replace("🏇 ", "")
 current_race_cond_name = selected_race_obj.get("cond", "一般特別")
@@ -1029,7 +964,7 @@ st.markdown(
     f"""
 <div class="race-banner">
     <div class="race-banner-title">
-        🔍 選択レース: {date_key} 【 {clean_race_title} 】
+        🔍 選択レース: {selected_date_str} 【 {clean_race_title} 】
     </div>
     <div class="race-banner-sub">
         出走頭数: <b>{len(current_race_horses)}頭 AI完全解析</b> ｜ 距離変化(短縮/延長)・前走クラス/着差連動中
@@ -1076,9 +1011,7 @@ st.divider()
 processed_horses = []
 
 for h_data in current_race_horses:
-    horse_name = (
-        h_data["馬名"] if "馬名" in h_data else h_data.get("馬name", "不明馬")
-    )
+    horse_name = h_data.get("馬名", "不明馬")
     waku = h_data["枠番"]
     umaban = h_data["馬番"]
 
@@ -1381,330 +1314,4 @@ with tab_tickets:
                 <p><b>軸</b>: %d番 (%s)</p>
                 <p><b>相手</b>: %s</p>
                 <p><b>ヒモ</b>: %s</p>
-                <p>💡 <b>分析根拠</b>: 軸固定で点数を抑えつつ距離短縮・前走僅差穴馬までカバーした回収率重視の構成。</p>
-            </div>
-            """
-                % (
-                    honmei["num"],
-                    honmei["name"],
-                    (
-                        f"{taikou['num']}番, {tanana['num']}番"
-                        if tanana
-                        else f"{taikou['num']}番"
-                    ),
-                    ", ".join([f"{h['num']}番" for h in renka])
-                    if renka
-                    else "全対応",
-                ),
-                unsafe_allow_html=True,
-            )
-
-        with col_t2:
-            st.markdown(
-                """
-            <div class="ticket-card">
-                <div class="ticket-title">🚀 3連単 1・2着固定フォーメーション</div>
-                <p><b>1着</b>: %d番 (%s)</p>
-                <p><b>2着</b>: %s</p>
-                <p><b>3着</b>: %s</p>
-                <p>💡 <b>分析根拠</b>: AI総合スコアトップの1着固定フォーメーションで高配当を狙う構成。</p>
-            </div>
-            """
-                % (
-                    honmei["num"],
-                    honmei["name"],
-                    (
-                        f"{taikou['num']}番, {tanana['num']}番"
-                        if tanana
-                        else f"{taikou['num']}番"
-                    ),
-                    ", ".join([f"{h['num']}番" for h in renka])
-                    if renka
-                    else "上位馬",
-                ),
-                unsafe_allow_html=True,
-            )
-
-            st.markdown(
-                """
-            <div class="ticket-card">
-                <div class="ticket-title">🔥 3連単 軸1頭/2頭マルチ</div>
-                <p><b>【軸1頭マルチ】</b> 軸: %d番 相手: %s (36点)</p>
-                <p><b>【軸2頭マルチ】</b> 軸: %d番 - %d番 相手: %s (18点)</p>
-                <p>💡 <b>分析根拠</b>: 馬場・前走着差・距離変化波乱に対応するマルチ購入プラン。</p>
-            </div>
-            """
-                % (
-                    honmei["num"],
-                    ", ".join(
-                        [f"{h['num']}番" for h in ([taikou, tanana] + renka[:2]) if h]
-                    ),
-                    honmei["num"],
-                    taikou["num"],
-                    ", ".join([f"{h['num']}番" for h in ([tanana] + renka[:2]) if h]),
-                ),
-                unsafe_allow_html=True,
-            )
-
-
-with tab_sim:
-    st.subheader(f"💰 【{clean_race_title}】 馬券資金ポートフォリオ・シミュレーター")
-
-    col_s1, col_s2 = st.columns([1.5, 2.5])
-
-    with col_s1:
-        budget = st.number_input(
-            "💵 購入総予算 (円)",
-            min_value=1000,
-            max_value=1000000,
-            value=10000,
-            step=1000,
-        )
-
-        selected_ticket_types = st.multiselect(
-            "購入プランを複数選択",
-            [
-                "馬連 流し (本線)",
-                "ワイド BOX (堅実)",
-                "3連複 1頭軸フォーメーション",
-                "3連単 1・2着固定フォーメーション",
-                "3連単 軸1頭マルチ",
-                "3連単 軸2頭マルチ",
-            ],
-            default=["馬連 流し (本線)"],
-        )
-
-    with col_s2:
-        if honmei and taikou:
-            st.markdown("##### 📊 資金配分・想定払戻ポートフォリオ")
-
-            if not selected_ticket_types:
-                st.warning("⚠️ 上記の選択肢から購入プランを1つ以上選択してください。")
-            else:
-                total_plans = len(selected_ticket_types)
-                budget_per_plan = budget / total_plans
-
-                portfolio_details = []
-                total_points = 0
-
-                for plan in selected_ticket_types:
-                    if plan == "馬連 流し (本線)":
-                        targets = [taikou, tanana] + renka[:2]
-                        valid = [t for t in targets if t]
-                        pts = len(valid)
-                        if pts > 0:
-                            per_pt = math.floor((budget_per_plan / pts) / 100) * 100
-                            tot_alloc = per_pt * pts
-                            total_points += pts
-                            comb_odds = round((honmei["odds"] + taikou["odds"]) * 0.75, 1)
-                            exp_payout = int(per_pt * comb_odds)
-                            portfolio_details.append({
-                                "plan": "馬連 流し",
-                                "points": pts,
-                                "per_pt": per_pt,
-                                "alloc": tot_alloc,
-                                "exp_payout": exp_payout,
-                                "detail": (
-                                    f"{honmei['num']}番 →"
-                                    f" {', '.join([str(t['num'])+'番' for t in valid])}"
-                                ),
-                            })
-
-                    elif plan == "ワイド BOX (堅実)":
-                        targets = [honmei, taikou, tanana]
-                        valid = [t for t in targets if t]
-                        pts = 3 if len(valid) >= 3 else 1
-                        per_pt = math.floor((budget_per_plan / pts) / 100) * 100
-                        tot_alloc = per_pt * pts
-                        total_points += pts
-                        comb_odds = round((honmei["odds"] + taikou["odds"]) * 0.35, 1)
-                        exp_payout = int(per_pt * max(1.5, comb_odds))
-                        portfolio_details.append({
-                            "plan": "ワイド BOX",
-                            "points": pts,
-                            "per_pt": per_pt,
-                            "alloc": tot_alloc,
-                            "exp_payout": exp_payout,
-                            "detail": (
-                                f"{', '.join([str(t['num'])+'番' for t in valid])} BOX"
-                            ),
-                        })
-
-                    elif plan == "3連複 1頭軸フォーメーション":
-                        pts = 6
-                        per_pt = math.floor((budget_per_plan / pts) / 100) * 100
-                        tot_alloc = per_pt * pts
-                        total_points += pts
-                        exp_payout = int(
-                            per_pt
-                            * max(
-                                10.0,
-                                (
-                                    honmei["odds"]
-                                    * taikou["odds"]
-                                    * (tanana["odds"] if tanana else 5.0)
-                                )
-                                ** 0.4,
-                            )
-                        )
-                        portfolio_details.append({
-                            "plan": "3連複 1頭軸フォーメーション",
-                            "points": pts,
-                            "per_pt": per_pt,
-                            "alloc": tot_alloc,
-                            "exp_payout": exp_payout,
-                            "detail": (
-                                f"軸: {honmei['num']}番 - 相手:"
-                                f" {taikou['num']},{tanana['num'] if tanana else ''} - ヒモ: 他"
-                            ),
-                        })
-
-                    elif plan == "3連単 1・2着固定フォーメーション":
-                        pts = 12
-                        per_pt = math.floor((budget_per_plan / pts) / 100) * 100
-                        tot_alloc = per_pt * pts
-                        total_points += pts
-                        exp_payout = int(
-                            per_pt
-                            * max(
-                                20.0,
-                                (honmei["odds"] * taikou["odds"] * 12.0),
-                            )
-                        )
-                        portfolio_details.append({
-                            "plan": "3連単 1・2着固定",
-                            "points": pts,
-                            "per_pt": per_pt,
-                            "alloc": tot_alloc,
-                            "exp_payout": exp_payout,
-                            "detail": (
-                                f"1着: {honmei['num']}番 → 2着: {taikou['num']}番 → 3着:"
-                                " 相手各馬"
-                            ),
-                        })
-
-                    elif plan == "3連単 軸1頭マルチ":
-                        pts = 36
-                        per_pt = math.floor((budget_per_plan / pts) / 100) * 100
-                        tot_alloc = per_pt * pts
-                        total_points += pts
-                        exp_payout = int(per_pt * max(30.0, (honmei["odds"] * 25.0)))
-                        portfolio_details.append({
-                            "plan": "3連単 軸1頭マルチ",
-                            "points": pts,
-                            "per_pt": per_pt,
-                            "alloc": tot_alloc,
-                            "exp_payout": exp_payout,
-                            "detail": f"軸: {honmei['num']}番 相手4頭 (36点)",
-                        })
-
-                    elif plan == "3連単 軸2頭マルチ":
-                        pts = 18
-                        per_pt = (
-                            math.floor((budget_per_plan / pts) / 100) * 100
-                            if pts > 0
-                            else 100
-                        )
-                        per_pt = max(100, int(per_pt))
-                        tot_alloc = per_pt * pts
-                        total_points += pts
-                        exp_payout = int(
-                            per_pt
-                            * max(
-                                25.0,
-                                (honmei["odds"] * taikou["odds"] * 8.0),
-                            )
-                        )
-                        portfolio_details.append({
-                            "plan": "3連単 軸2頭マルチ",
-                            "points": pts,
-                            "per_pt": per_pt,
-                            "alloc": tot_alloc,
-                            "exp_payout": exp_payout,
-                            "detail": (
-                                f"軸: {honmei['num']}番, {taikou['num']}番 相手3頭"
-                                " (18点)"
-                            ),
-                        })
-
-                for p in portfolio_details:
-                    with st.expander(
-                        f"📌 **{p['plan']}** （合計: `{p['alloc']:,}円` / {p['points']}点）",
-                        expanded=True,
-                    ):
-                        st.write(f"• **買い目概要**: {p['detail']}")
-                        st.write(
-                            f"• **1点当たり購入額**: `{p['per_pt']:,}円` ({p['points']}点)"
-                        )
-                        st.write(
-                            f"• **的中時想定払戻額**: **`{p['exp_payout']:,}円`**"
-                        )
-
-                actual_total_used = sum([p["alloc"] for p in portfolio_details])
-                st.success(
-                    f"✨ **ポートフォリオ総計**: 総点数 `{total_points}点` ｜ 合計投資額"
-                    f" `{actual_total_used:,}円` （残予算:"
-                    f" `{budget - actual_total_used:,}円`）"
-                )
-
-
-# --- 📦 Base44 データ共有・出力タブ ---
-with tab_b44:
-    st.subheader(f"📦 【{clean_race_title}】 Base44 データ連携 ＆ 復元ツール")
-
-    col_b1, col_b2 = st.columns(2)
-
-    with col_b1:
-        st.markdown("##### 📤 レースAI分析データのBase44エンコード")
-
-        export_data = {
-            "race_title": clean_race_title,
-            "date": date_key,
-            "condition": current_race_cond_name,
-            "weather": weather,
-            "track_condition": current_track_condition,
-            "track_bias": track_bias,
-            "pace": expected_pace,
-            "honmei": f"{honmei['num']}番 {honmei['name']}" if honmei else "",
-            "taikou": f"{taikou['num']}番 {taikou['name']}" if taikou else "",
-            "tanana": f"{tanana['num']}番 {tanana['name']}" if tanana else "",
-            "rankings": [
-                {
-                    "rank": idx + 1,
-                    "num": h["num"],
-                    "name": h["name"],
-                    "score": h["total_score"],
-                    "odds": h["odds_str"],
-                }
-                for idx, h in enumerate(ranked_horses)
-            ],
-        }
-
-        json_bytes = json.dumps(export_data, ensure_ascii=False, indent=2).encode("utf-8")
-        b44_encoded = base44_encode(json_bytes)
-
-        st.text_area("🔑 生成された Base44 エンコード文字列", value=b44_encoded, height=140)
-
-        df_export = pd.DataFrame(export_data["rankings"])
-        csv_bytes = df_export.to_csv(index=False).encode("utf-8-sig")
-
-        st.download_button(
-            label="📥 AI分析スコアCSVをダウンロード",
-            data=csv_bytes,
-            file_name=f"KUINA_AI_{date_key}_{clean_race_title}.csv",
-            mime="text/csv",
-        )
-
-    with col_b2:
-        st.markdown("##### 📥 Base44データのデコード・復元テスト")
-
-        input_b44 = st.text_area("Base44文字列を貼り付け", value=b44_encoded, height=140)
-
-        if st.button("🔓 Base44をデコードして復元"):
-            try:
-                decoded_bytes = base44_decode(input_b44)
-                decoded_json = json.loads(decoded_bytes.decode("utf-8"))
-                st.success("✅ Base44デコード成功！復元されたデータ:")
-                st.json(decoded_json)
-            except Exception as e:
-                st.error(f"❌ Base44デコード失敗: {e}")
+                <p>💡 <b>分析根拠</b>: 軸固定で点数を抑えつつ距離短縮
