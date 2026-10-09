@@ -256,6 +256,7 @@ def scan_and_load_all_csvs():
             track_type = str(row[5]).strip() if pd.notna(row[5]) else ""
             dist = str(row[6]).strip() if pd.notna(row[6]) else ""
             
+            # 馬名=Index 7, 騎手=Index 10
             horse_name = str(row[7]).strip() if pd.notna(row[7]) else ""
             jockey = str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
 
@@ -361,15 +362,17 @@ def load_past_races_index():
 
 
 # ==============================================================================
-# 4. AI解析 ＆ 隊列グラフィック生成エンジン
+# 4. 高精度 AI解析エンジン (枠番＆馬場適性の詳細解析強化)
 # ==============================================================================
 
 def analyze_horse_with_index(
     horse_name,
     umaban,
     waku,
+    total_horses,
     current_race_cond,
     current_race_dist_str,
+    current_track_type,
     past_index,
     current_track_condition,
     weather,
@@ -378,6 +381,7 @@ def analyze_horse_with_index(
 ):
     past_list = past_index.get(horse_name, [])
 
+    # 1. 脚質判定
     real_style = "先行"
     if past_list:
         pass1_vals = [
@@ -394,54 +398,115 @@ def analyze_horse_with_index(
         styles = ["逃げ", "先行", "差し", "追込"]
         real_style = styles[(umaban * 3 + len(horse_name)) % 4]
 
-    score_adj = 0.0
+    # 2. 馬場適性詳細評価 (過去走データの道悪・馬場状態実績解析)
+    bad_score_adj = 0.0
     bad_flag = "標準"
-    bad_comment = "標準的な馬場適性範囲内です。"
+    bad_comment = ""
 
-    if current_track_condition in ["重", "不良"]:
-        if real_style in ["逃げ", "先行"]:
-            score_adj += 6.0
-            bad_flag = "道悪好適"
-            bad_comment = "重馬場×前行き脚質による前残り有利展開に適合。"
-        elif real_style == "追込":
-            score_adj -= 6.0
-            bad_flag = "道悪懸念"
-            bad_comment = "重馬場×追込脚質のため展開面での大幅割り引き。"
+    wet_past_races = [
+        p for p in past_list
+        if p.get("馬場状態") in ["稍重", "重", "不良"]
+    ]
 
+    is_wet_track = current_track_condition in ["稍重", "重", "不良"]
+
+    if is_wet_track:
+        if wet_past_races:
+            best_wet_finish = min([
+                int(re.search(r"\d+", p.get("着順", "99")).group())
+                for p in wet_past_races if re.search(r"\d+", p.get("着順", "99"))
+            ] or [99])
+
+            if best_wet_finish <= 3:
+                bad_score_adj += 8.0
+                bad_flag = "道悪◎(好実績)"
+                bad_comment = f"過去の道悪馬場で最高{best_wet_finish}着の好実績あり！タフな馬場適性は非常に高く、今回の{current_track_condition}馬場は絶好の勝機。"
+            elif best_wet_finish <= 5:
+                bad_score_adj += 4.0
+                bad_flag = "道悪◯"
+                bad_comment = f"過去の道悪馬場で掲示板（{best_wet_finish}着）獲得実績あり。崩れにくいパワーと重馬場適性を備えています。"
+            else:
+                bad_score_adj -= 5.0
+                bad_flag = "道悪不安"
+                bad_comment = f"過去の道悪馬場では凡走傾向（最高{best_wet_finish}着）。馬場悪化によるパフォーマンス低下に注意が必要。"
+        else:
+            if real_style in ["逃げ", "先行"]:
+                bad_score_adj += 5.0
+                bad_flag = "道悪注意(前行き)"
+                bad_comment = f"道悪の過去走実績は少ないですが、{current_track_condition}馬場×前行き脚質（{real_style}）により前残り有利展開の恩恵を期待。"
+            elif real_style == "追込":
+                bad_score_adj -= 5.0
+                bad_flag = "道悪懸念(後方)"
+                bad_comment = f"{current_track_condition}馬場で後方からの追込脚質。水を含んだタフな馬場で前との差が縮まりにくく大幅割引。"
+            else:
+                bad_comment = f"{current_track_condition}馬場での走破実績はなく未知数。血統・パワー要求度の高まりに対応できるかが鍵。"
+    else:
+        bad_comment = "良馬場開催につき、スピード・瞬発力（上り性能）をフルに発揮できる好条件です。"
+
+    # 3. 枠番・配置詳細評価
+    waku_score_adj = 0.0
+    waku_comment = ""
+    is_dirt = "ダ" in str(current_track_type) or "ダート" in str(current_track_type)
+
+    if waku in [1, 2]:
+        if is_dirt:
+            waku_score_adj -= 2.0
+            waku_comment = f"最内{waku}枠。ダート戦のため被せられた際の砂被り（キックバック）リスクに注意が必要。"
+        else:
+            waku_score_adj += 3.0
+            waku_comment = f"絶好の{waku}枠（内枠）。最短距離をロスなく立ち回れる経済コースの恩恵大。"
+    elif waku in [3, 4, 5, 6]:
+        waku_score_adj += 2.0
+        waku_comment = f"自在性の高い{waku}枠（中枠）。展開に応じたポジション取りがしやすく包まれるリスクも低い好配置。"
+    else:  # 7, 8枠
+        if is_dirt:
+            waku_score_adj += 4.0
+            waku_comment = f"ダート好走の黄金パターンである外{waku}枠。砂被りを回避しスムーズに外から進出可能。"
+        else:
+            if total_horses >= 15:
+                waku_score_adj -= 3.0
+                waku_comment = f"多頭数（{total_horses}頭立）の外{waku}枠。終始外を回らされる距離ロスの懸念あり。"
+            else:
+                waku_comment = f"外枠の{waku}枠。スムーズに包まれず運べる反面、コーナーでの距離ロスには注意。"
+
+    # トラックバイアスとのシナジー評価
     tb_adj = 0.0
-    tb_comment = "選択されたトラックバイアスとの適合度を解析。"
+    tb_comment = ""
 
     if track_bias == "超イン伸び・最内ラチ有利":
         if waku <= 2 and real_style in ["逃げ", "先行"]:
             tb_adj = 10.0
-            tb_comment = f"{waku}枠の最内枠×前行き脚質。超イン伸び馬場の絶好位置を通れる最高の展開です。"
+            tb_comment = f" ➔ 【バイアス絶好】{waku}枠の内枠×前行き脚質。最内ラチ沿いのウイニングショットを通れる最高の展開です。"
         elif waku >= 7:
             tb_adj = -7.0
-            tb_comment = f"{waku}枠の外枠により内ラチ沿いに入れず厳しいバイアス不利。"
+            tb_comment = f" ➔ 【バイアス逆風】{waku}枠の外枠によりインコースに入れず、厳しい馬場バイアス不利。"
 
     elif track_bias in ["内伸び・内前有利", "内前有利"]:
         if waku <= 4 and real_style in ["逃げ", "先行"]:
             tb_adj = 8.0
-            tb_comment = f"{waku}枠×好位前目。内前有利馬場を活かせる絶好配置です。"
+            tb_comment = f" ➔ 【バイアス良好】{waku}枠×好位前目。内前有利な馬場傾向を完璧に活かせる配置です。"
 
     elif track_bias in ["外伸び・外差し有利", "外差し有利"]:
         if waku >= 5 and real_style in ["差し", "追込"]:
             tb_adj = 8.0
-            tb_comment = f"{waku}枠×外差し脚質。伸びる外目を一気に突き抜けるバイアス強者。"
+            tb_comment = f" ➔ 【バイアス良好】{waku}枠×外差し脚質。伸びる外目馬場を一気に突き抜ける絶好好機。"
 
     elif track_bias in ["超前残り・逃げ天国", "前残り強"]:
         if real_style == "逃げ":
             tb_adj = 10.0
-            tb_comment = "超前残り馬場につき、逃げ馬の押し切り濃厚。"
+            tb_comment = " ➔ 【バイアス絶好】超前残り馬場につき、逃げ馬のそのまま押し切りが濃厚。"
         elif real_style == "追込":
             tb_adj = -8.0
-            tb_comment = "後方追込は絶望的な超前残り馬場バイアス。"
+            tb_comment = " ➔ 【バイアス逆風】後方追込には絶望的な超前残りバイアス。"
 
     elif track_bias == "前崩れ・差し必至":
         if real_style in ["差し", "追込"]:
             tb_adj = 8.0
-            tb_comment = "ハイペース・前崩れ展開につき末脚爆発の絶好好機。"
+            tb_comment = " ➔ 【バイアス良好】前崩れ必至のハイペース展開につき末脚爆発の絶好機会。"
 
+    waku_full_comment = waku_comment + tb_comment
+
+    # 4. 距離適性・分析
     dist_flag = "適性距離"
     dist_comment = "前走と同等の距離設定推移。"
     curr_dist_num = parse_distance_num(current_race_dist_str)
@@ -453,26 +518,20 @@ def analyze_horse_with_index(
             diff = curr_dist_num - last_dist_num
             if diff <= -200:
                 dist_flag = f"距離短縮({diff}m)"
-                score_adj += 6.0
                 dist_comment = f"前走{last_dist_num}mから{abs(diff)}mの距離短縮。追走ペースが楽になり末脚爆発の期待大。"
             elif diff >= 200:
                 dist_flag = f"距離延長(+{diff}m)"
                 dist_comment = f"前走{last_dist_num}mから+{diff}mへの距離延長。道中のゆったりした追走が可能。"
 
-    class_flag = "同級推移"
-    class_comment = "同クラス内での能力比較において上位水準。"
-
-    total_score = round(70.0 + score_adj + tb_adj, 1)
+    total_score = round(70.0 + bad_score_adj + waku_score_adj + tb_adj, 1)
 
     return {
         "real_style": real_style,
         "bad_flag": bad_flag,
         "bad_comment": bad_comment,
-        "bias_comment": tb_comment,
+        "waku_comment": waku_full_comment,
         "dist_flag": dist_flag,
         "dist_comment": dist_comment,
-        "class_flag": class_flag,
-        "class_comment": class_comment,
         "total_score": total_score,
     }
 
@@ -688,6 +747,7 @@ st.divider()
 
 # --- インデックス参照型 全馬スコア演算 ---
 processed_horses = []
+tot_horses_count = len(current_race_horses)
 
 for h_data in current_race_horses:
     horse_name = h_data.get("馬名", "不明馬")
@@ -698,8 +758,10 @@ for h_data in current_race_horses:
         horse_name,
         umaban,
         waku,
+        tot_horses_count,
         current_race_cond_name,
         current_race_dist_str,
+        current_track_type,
         past_index,
         track_condition,
         weather,
@@ -716,11 +778,9 @@ for h_data in current_race_horses:
         "real_style": eval_res["real_style"],
         "bad_flag": eval_res["bad_flag"],
         "bad_comment": eval_res["bad_comment"],
-        "bias_comment": eval_res["bias_comment"],
+        "waku_comment": eval_res["waku_comment"],
         "dist_flag": eval_res["dist_flag"],
         "dist_comment": eval_res["dist_comment"],
-        "class_flag": eval_res["class_flag"],
-        "class_comment": eval_res["class_comment"],
     })
 
 ranked_horses = sorted(
@@ -756,8 +816,12 @@ with tab_rank:
         if "距離短縮" in horse["dist_flag"]:
             tags_html += '<span style="background-color:#2563eb; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">距離短縮</span>'
 
-        if horse["bad_flag"] == "道悪好適":
-            tags_html += '<span style="background-color:#10b981; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">道悪好適</span>'
+        if "道悪◎" in horse["bad_flag"]:
+            tags_html += '<span style="background-color:#059669; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">道悪◎(好実績)</span>'
+        elif "道悪◯" in horse["bad_flag"]:
+            tags_html += '<span style="background-color:#10b981; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">道悪◯</span>'
+        elif "道悪不安" in horse["bad_flag"] or "懸念" in horse["bad_flag"]:
+            tags_html += '<span style="background-color:#dc2626; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">道悪割り引き</span>'
 
         card_code = f"""
         <div class="horse-card" style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px;">
@@ -772,12 +836,12 @@ with tab_rank:
                 <div>{tags_html}</div>
             </div>
             <div style="flex: 2 1 300px; min-width: 250px;">
-                <div class="analysis-label">📏 距離変化・適性評価</div>
-                <div class="analysis-text">{horse["dist_comment"]}</div>
-                <div class="analysis-label">🚩 枠順・バイアス適性</div>
-                <div class="analysis-text">{horse["bias_comment"]}</div>
-                <div class="analysis-label">🌧️ 馬場・天候条件</div>
+                <div class="analysis-label">🚩 枠順・展開配置評価</div>
+                <div class="analysis-text">{horse["waku_comment"]}</div>
+                <div class="analysis-label">🌧️ 馬場適性・過去実績評価</div>
                 <div class="analysis-text">{horse["bad_comment"]}</div>
+                <div class="analysis-label">📏 距離推移・展開分析</div>
+                <div class="analysis-text">{horse["dist_comment"]}</div>
             </div>
             <div style="flex: 0 0 80px; text-align: right;">
                 <div class="score-badge">{horse["total_score"]} <span style="font-size:13px;">pt</span></div>
