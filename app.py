@@ -175,7 +175,7 @@ def parse_distance_num(dist_str):
 def get_jra_waku(umaban, total_horses):
     if total_horses <= 8:
         return umaban
-    capacities =
+    capacities = [1, 1, 1, 1, 1, 1, 1, 1]
     extras = total_horses - 8
     for i in range(7, -1, -1):
         if extras > 0:
@@ -730,9 +730,9 @@ ranked_horses = sorted(
     processed_horses, key=lambda x: x["total_score"], reverse=True
 )
 
-honmei = ranked_horses if len(ranked_horses) > 0 else None
-taikou = ranked_horses if len(ranked_horses) > 1 else None
-tanana = ranked_horses if len(ranked_horses) > 2 else None
+honmei = ranked_horses[0] if len(ranked_horses) > 0 else None
+taikou = ranked_horses[1] if len(ranked_horses) > 1 else None
+tanana = ranked_horses[2] if len(ranked_horses) > 2 else None
 renka = ranked_horses[3:6] if len(ranked_horses) >= 6 else ranked_horses[3:]
 
 
@@ -801,7 +801,6 @@ with tab_pace:
 
     st.markdown("##### 📋 出走馬 枠色連動一覧")
 
-    # クリーンなHTML（改行インデント崩れを全除去）
     legend_html_list = []
     for h in sorted(processed_horses, key=lambda x: x["num"]):
         bg_col, text_col = WAKU_COLOR_MAP.get(h["waku"], ("#ffffff", "#000000"))
@@ -826,7 +825,6 @@ with tab_tickets:
     st.subheader(f"🎯 【{clean_race_title}】 AI推奨 馬券フォーメーション")
 
     if honmei and taikou:
-        # 印の早見表
         col_mark1, col_mark2, col_mark3, col_mark4 = st.columns(4)
         with col_mark1:
             st.info(f"**◎ 本命**: {honmei['num']}番 **{honmei['name']}**\n\nスコア: {honmei['total_score']} pt")
@@ -852,7 +850,6 @@ with tab_tickets:
         col_t1, col_t2 = st.columns(2)
 
         with col_t1:
-            # 1. 馬連
             umaren_combos = f"{h_num} - {t_num}" + (f", {a_num}" if a_num else "") + (f", {', '.join(r_nums)}" if r_nums else "")
             st.markdown(
                 f"""
@@ -868,7 +865,6 @@ with tab_tickets:
                 unsafe_allow_html=True
             )
 
-            # 2. 馬単
             umatan_combos = f"{h_num} ➔ {t_num}" + (f", {a_num}" if a_num else "") + (f", {', '.join(r_nums)}" if r_nums else "")
             st.markdown(
                 f"""
@@ -884,7 +880,6 @@ with tab_tickets:
                 unsafe_allow_html=True
             )
 
-            # 3. ワイド
             wide_combos = f"{h_num} - {t_num}" + (f", {a_num}" if a_num else "")
             st.markdown(
                 f"""
@@ -901,7 +896,6 @@ with tab_tickets:
             )
 
         with col_t2:
-            # 4. 3連複
             sanrenpuku_combos = f"{h_num} - {t_num} - {a_and_r_str}"
             st.markdown(
                 f"""
@@ -917,7 +911,6 @@ with tab_tickets:
                 unsafe_allow_html=True
             )
 
-            # 5. 3連単
             sanrentan_combos = f"{h_num} ➔ {t_num}{f', {a_num}' if a_num else ''} ➔ {t_num}, {a_and_r_str}"
             st.markdown(
                 f"""
