@@ -6,9 +6,11 @@ import math
 import numpy as np
 import pandas as pd
 import streamlit as st
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 # ==============================================================================
-# 1. ページ基本設定 ＆ スタイリッシュ＆スマホ最適化CSS (Style層)
+# 1. ページ基本設定 ＆ スタイリッシュ＆スマホ最適化CSS
 # ==============================================================================
 st.set_page_config(
     page_title="KUINA AI | Racing Intelligence",
@@ -26,27 +28,20 @@ st.markdown(
     .kuina-header {
         background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
         color: #ffffff;
-        padding: 24px 28px;
-        border-radius: 18px;
+        padding: 20px 24px;
+        border-radius: 16px;
         margin-bottom: 20px;
         box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.3);
         border: 1px solid rgba(255, 255, 255, 0.1);
     }
     .kuina-header h1 {
         margin: 0;
-        font-size: 28px;
+        font-size: 26px;
         font-weight: 900;
         letter-spacing: -0.5px;
         background: linear-gradient(to right, #ffffff, #a5f3fc);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-    }
-    .kuina-header p {
-        margin: 6px 0 0 0;
-        color: #cbd5e1;
-        font-size: 13px;
-        font-weight: 500;
-        letter-spacing: 0.2px;
     }
     .race-banner {
         background: #ffffff;
@@ -58,7 +53,7 @@ st.markdown(
         box-shadow: 0 2px 6px rgba(0,0,0,0.03);
     }
     .race-banner-title {
-        font-size: 20px;
+        font-size: 19px;
         font-weight: 800;
         color: #1e1b4b;
     }
@@ -82,17 +77,6 @@ st.markdown(
     section[data-testid="stSidebar"] {
         display: none;
     }
-    .horse-pill {
-        display: inline-block;
-        background-color: #f1f5f9;
-        border: 1px solid #cbd5e1;
-        color: #334155;
-        border-radius: 20px;
-        padding: 5px 12px;
-        margin: 3px;
-        font-size: 12px;
-        font-weight: 700;
-    }
     .score-badge {
         font-size: 26px;
         font-weight: 900;
@@ -111,11 +95,10 @@ st.markdown(
         line-height: 1.5;
     }
     @media (max-width: 768px) {
-        .kuina-header { padding: 18px 20px; border-radius: 14px; }
-        .kuina-header h1 { font-size: 22px; }
-        .kuina-header p { font-size: 12px; }
+        .kuina-header { padding: 16px 18px; border-radius: 12px; }
+        .kuina-header h1 { font-size: 20px; }
         .race-banner { padding: 14px 16px; }
-        .race-banner-title { font-size: 17px; }
+        .race-banner-title { font-size: 16px; }
         .horse-card { padding: 14px; margin-bottom: 12px; }
         .score-badge { font-size: 22px; text-align: left; margin-top: 8px; }
     }
@@ -180,8 +163,20 @@ def get_jra_waku(umaban, total_horses):
     return 8
 
 
+# JRA標準枠色マップ (背景色, 文字色)
+WAKU_COLOR_MAP = {
+    1: ("#ffffff", "#000000"),  # 1枠: 白
+    2: ("#1e293b", "#ffffff"),  # 2枠: 黒
+    3: ("#ef4444", "#ffffff"),  # 3枠: 赤
+    4: ("#3b82f6", "#ffffff"),  # 4枠: 青
+    5: ("#eab308", "#000000"),  # 5枠: 黄
+    6: ("#22c55e", "#ffffff"),  # 6枠: 緑
+    7: ("#f97316", "#ffffff"),  # 7枠: 橙
+    8: ("#ec4899", "#ffffff"),  # 8枠: 桃
+}
+
 # ==============================================================================
-# 3. 超高速インデックス構築 ＆ データロード
+# 3. 高速インデックスロード
 # ==============================================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -290,7 +285,6 @@ def scan_and_load_all_csvs():
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_past_races_index():
-    """軽量JSONインデックス(past_index.json)を最速読み込み。無ければCSVから安全補完。"""
     json_candidates = ["past_index.json", "./data/past_index.json", "/workspace/knowledge/past_index.json"]
     for jpath in json_candidates:
         if os.path.exists(jpath):
@@ -343,34 +337,8 @@ def load_past_races_index():
     return horse_past_map
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_historical_stats():
-    waku_files = glob.glob("./*枠番*.csv") + glob.glob("./data/*枠番*.csv") + glob.glob("/workspace/knowledge/*枠番*.csv")
-    kyakushitsu_files = glob.glob("./*脚質*.csv") + glob.glob("./data/*脚質*.csv") + glob.glob("/workspace/knowledge/*脚質*.csv")
-
-    df_waku = None
-    if waku_files:
-        for enc in ["cp932", "shift_jis", "utf-8"]:
-            try:
-                df_waku = pd.read_csv(waku_files[0], encoding=enc)
-                break
-            except Exception:
-                pass
-
-    df_kyakushitsu = None
-    if kyakushitsu_files:
-        for enc in ["cp932", "shift_jis", "utf-8"]:
-            try:
-                df_kyakushitsu = pd.read_csv(kyakushitsu_files[0], encoding=enc)
-                break
-            except Exception:
-                pass
-
-    return df_waku, df_kyakushitsu
-
-
 # ==============================================================================
-# 4. インデックス参照型 AI解析エンジン
+# 4. AI解析 ＆ 隊列グラフィック生成エンジン
 # ==============================================================================
 
 def analyze_horse_with_index(
@@ -486,6 +454,86 @@ def analyze_horse_with_index(
     }
 
 
+def render_pace_map_graphic(processed_horses, race_title):
+    """隊列グラフィック（画像）の描画生成"""
+    fig, ax = plt.subplots(figsize=(12, 4.5), dpi=150)
+    fig.patch.set_facecolor('#0f172a')
+    ax.set_facecolor('#1e293b')
+
+    # 背景トラックライン
+    ax.axhline(0, color='#334155', linewidth=2, linestyle='--')
+    ax.axhline(1.5, color='#334155', linewidth=1, linestyle=':')
+    ax.axhline(-1.5, color='#334155', linewidth=1, linestyle=':')
+
+    # 進行方向矢印
+    ax.annotate(
+        "← 進行方向 (ゴール)",
+        xy=(0.5, 2.3),
+        xytext=(3.5, 2.3),
+        arrowprops=dict(facecolor='#a5f3fc', edgecolor='#a5f3fc', width=2, headwidth=8),
+        fontsize=11,
+        fontweight='bold',
+        color='#a5f3fc',
+        ha='left'
+    )
+
+    # ゾーン区分 (逃げ, 先行, 差し, 追込)
+    zones = [
+        ("🏃 逃げ (先頭)", 0.5, 2.5, '#ef4444'),
+        ("🐎 先行 (好位)", 3.0, 5.5, '#f59e0b'),
+        ("🐎 差し (中団)", 6.0, 8.5, '#10b981'),
+        ("🐎 追込 (後方)", 9.0, 11.5, '#6366f1'),
+    ]
+
+    for ztitle, xmin, xmax, zcolor in zones:
+        rect = patches.Rectangle((xmin, -2.2), xmax - xmin, 4.2, linewidth=0, facecolor=zcolor, alpha=0.08)
+        ax.add_patch(rect)
+        ax.text((xmin + xmax)/2, -2.0, ztitle, color=zcolor, fontsize=10, fontweight='bold', ha='center')
+
+    style_x_offsets = {
+        "逃げ": (0.8, 2.2),
+        "先行": (3.3, 5.2),
+        "差し": (6.3, 8.2),
+        "追込": (9.3, 11.2),
+    }
+
+    style_counts = {"逃げ": 0, "先行": 0, "差し": 0, "追込": 0}
+
+    for horse in processed_horses:
+        style = horse["real_style"]
+        waku = horse["waku"]
+        num = horse["num"]
+        name = horse["name"]
+
+        bg_col, text_col = WAKU_COLOR_MAP.get(waku, ("#ffffff", "#000000"))
+        xmin, xmax = style_x_offsets.get(style, (3.3, 5.2))
+        cnt = style_counts[style]
+
+        x_pos = xmin + (cnt % 2) * 1.1
+        y_pos = 1.2 - (cnt // 2) * 0.9 if cnt < 4 else -1.2 + (cnt % 2) * 0.6
+        style_counts[style] += 1
+
+        # 馬バッジ描画
+        badge = patches.FancyBboxPatch(
+            (x_pos - 0.45, y_pos - 0.3), 0.9, 0.6,
+            boxstyle="round,pad=0.1,rounding_size=0.15",
+            facecolor=bg_col, edgecolor='#64748b', linewidth=1.2
+        )
+        ax.add_patch(badge)
+
+        ax.text(
+            x_pos, y_pos, f"{num}.{name[:4]}",
+            color=text_col, fontsize=9, fontweight='bold',
+            ha='center', va='center'
+        )
+
+    ax.set_xlim(-0.2, 12.2)
+    ax.set_ylim(-2.5, 2.7)
+    ax.axis('off')
+    plt.tight_layout()
+    return fig
+
+
 # ==============================================================================
 # 5. メイン画面 UI構築
 # ==============================================================================
@@ -494,7 +542,6 @@ st.markdown(
     """
 <div class="kuina-header">
     <h1>💎 KUINA AI | Racing Intelligence System</h1>
-    <p>展開バイアス × 距離変化 × 過去走インデックス参照 ｜ クリーン高精度AI予想エンジン</p>
 </div>
 """,
     unsafe_allow_html=True,
@@ -503,7 +550,6 @@ st.markdown(
 with st.spinner("データを読み込んでいます..."):
     date_races_map = scan_and_load_all_csvs()
     past_index = load_past_races_index()
-    df_waku, df_kyakushitsu = load_historical_stats()
 
 available_dates = sorted(list(date_races_map.keys()))
 
@@ -648,14 +694,13 @@ renka = ranked_horses[3:6] if len(ranked_horses) >= 6 else ranked_horses[3:]
 
 
 # ==============================================================================
-# 6. タブ別表示 (Style & View)
+# 6. タブ別表示
 # ==============================================================================
 
-tab_rank, tab_pace, tab_tickets, tab_stats = st.tabs([
+tab_rank, tab_pace, tab_tickets = st.tabs([
     "🏆 AI分析スコア",
-    "🏇 展開・隊列マップ",
+    "🏇 展開・隊列グラフィック",
     "🎯 AI推奨馬券",
-    "📊 コース統計データ",
 ])
 
 with tab_rank:
@@ -705,41 +750,9 @@ with tab_rank:
 
 
 with tab_pace:
-    st.subheader(f"🏇 【{clean_race_title}】 展開予想・推定隊列マップ")
-
-    style_groups = {"逃げ": [], "先行": [], "差し": [], "追込": []}
-    for h in processed_horses:
-        style_groups[h["real_style"]].append(h)
-
-    col_pos1, col_pos2, col_pos3, col_pos4 = st.columns(4)
-
-    with col_pos1:
-        st.markdown("##### 🏃 逃げ (先頭)")
-        if style_groups["逃げ"]:
-            pills = "".join([f'<div class="horse-pill">枠{h["waku"]} {h["num"]}番 {h["name"]}</div>' for h in style_groups["逃げ"]])
-            st.markdown(pills, unsafe_allow_html=True)
-        else: st.caption("該当馬なし")
-
-    with col_pos2:
-        st.markdown("##### 🐎 先行 (好位)")
-        if style_groups["先行"]:
-            pills = "".join([f'<div class="horse-pill">枠{h["waku"]} {h["num"]}番 {h["name"]}</div>' for h in style_groups["先行"]])
-            st.markdown(pills, unsafe_allow_html=True)
-        else: st.caption("該当馬なし")
-
-    with col_pos3:
-        st.markdown("##### 🐎 差し (中団)")
-        if style_groups["差し"]:
-            pills = "".join([f'<div class="horse-pill">枠{h["waku"]} {h["num"]}番 {h["name"]}</div>' for h in style_groups["差し"]])
-            st.markdown(pills, unsafe_allow_html=True)
-        else: st.caption("該当馬なし")
-
-    with col_pos4:
-        st.markdown("##### 🐎 追込 (後方)")
-        if style_groups["追込"]:
-            pills = "".join([f'<div class="horse-pill">枠{h["waku"]} {h["num"]}番 {h["name"]}</div>' for h in style_groups["追込"]])
-            st.markdown(pills, unsafe_allow_html=True)
-        else: st.caption("該当馬なし")
+    st.subheader(f"🏇 【{clean_race_title}】 展開・推定隊列グラフィック")
+    fig = render_pace_map_graphic(processed_horses, clean_race_title)
+    st.pyplot(fig, use_container_width=True)
 
 
 with tab_tickets:
@@ -756,31 +769,3 @@ with tab_tickets:
         with col_mark4:
             renka_names = ", ".join([f"{h['num']}番" for h in renka])
             st.error(f"**△ 紐・穴**: {renka_names}\n\n展開好転予想馬")
-
-
-with tab_stats:
-    st.subheader(f"📊 過去5年 競馬場・コース統計データ ({current_track_name} {current_race_dist_str}m)")
-
-    col_st1, col_st2 = st.columns(2)
-
-    with col_st1:
-        st.markdown("##### 枠番別 過去好走傾向 (2020-2025)")
-        if df_waku is not None:
-            matches = df_waku[df_waku["場所･距離"].str.contains(f"{current_track_name}.*{current_race_dist_str}", na=False)]
-            if not matches.empty:
-                st.dataframe(matches, width="stretch", hide_index=True)
-            else:
-                st.dataframe(df_waku.head(10), width="stretch", hide_index=True)
-        else:
-            st.caption("枠番統計ファイルロード中...")
-
-    with col_st2:
-        st.markdown("##### 脚質別 過去好走傾向 (2020-2025)")
-        if df_kyakushitsu is not None:
-            matches_k = df_kyakushitsu[df_kyakushitsu["場所･距離"].str.contains(f"{current_track_name}.*{current_race_dist_str}", na=False)]
-            if not matches_k.empty:
-                st.dataframe(matches_k, width="stretch", hide_index=True)
-            else:
-                st.dataframe(df_kyakushitsu.head(10), width="stretch", hide_index=True)
-        else:
-            st.caption("脚質統計ファイルロード中...")
