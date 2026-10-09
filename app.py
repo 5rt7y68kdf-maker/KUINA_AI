@@ -1,12 +1,51 @@
+import base64
 import datetime
 import glob
 import hashlib
+import json
 import math
 import os
 import re
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+# ==============================================================================
+# Base44 エンコード / デコード関数
+# ==============================================================================
+BASE44_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefgh"
+
+
+def base44_encode(data_bytes: bytes) -> str:
+    """バイト列をBase44文字列にエンコード"""
+    if not data_bytes:
+        return ""
+    num = int.from_bytes(data_bytes, "big")
+    if num == 0:
+        return BASE44_ALPHABET
+    res = []
+    while num > 0:
+        num, rem = divmod(num, 44)
+        res.append(BASE44_ALPHABET[rem])
+    n_zeros = len(data_bytes) - len(data_bytes.lstrip(b"\x00"))
+    return (BASE44_ALPHABET * n_zeros) + "".join(reversed(res))
+
+
+def base44_decode(b44_str: str) -> bytes:
+    """Base44文字列をバイト列にデコード"""
+    clean_str = b44_str.strip()
+    if not clean_str:
+        return b""
+    num = 0
+    for char in clean_str:
+        if char not in BASE44_ALPHABET:
+            raise ValueError(f"無効なBase44文字が含まれています: '{char}'")
+        idx = BASE44_ALPHABET.index(char)
+        num = num * 44 + idx
+    n_zeros = len(clean_str) - len(clean_str.lstrip(BASE44_ALPHABET))
+    length = (num.bit_length() + 7) // 8 if num > 0 else 0
+    return (b"\x00" * n_zeros) + num.to_bytes(length, "big")
+
 
 # ==============================================================================
 # 1. ページ基本設定 ＆ スタイリッシュ＆スマホ最適化CSS
@@ -162,7 +201,6 @@ def extract_raw_csv_odds(row):
         except (ValueError, TypeError, IndexError):
             pass
 
-    # フォールバック (Col 27予想オッズ形式)
     if len(row) > 27:
         try:
             val_str = str(row[27]).strip()
@@ -224,7 +262,7 @@ def parse_margin_seconds(margin_str):
 
 
 def parse_distance_num(dist_str):
-    """距離文字列（例: '1800', '芝1800m'）から数値を取得"""
+    """距離文字列から数値を取得"""
     if not dist_str:
         return 0
     m = re.search(r"\d{4}", str(dist_str))
@@ -299,13 +337,13 @@ def calculate_race_ai_odds(processed_horses):
 
 
 # ==============================================================================
-# 3. 超軽量データロード (三会場対応 ＆ 過去走10ファイル最適化)
+# 3. 超軽量データロード (実データ限定)
 # ==============================================================================
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def scan_and_load_all_csvs():
-    """三会場（全競馬場・1日最大36R以上）対応の出走表ロード（オッズ・人気データ完全同期）"""
+    """実際の出走表CSVのみを厳格にロード"""
     raw_files = (
         glob.glob("./*.csv")
         + glob.glob("./*.CSV")
@@ -355,7 +393,7 @@ def scan_and_load_all_csvs():
         if len(df.columns) >= 12:
             vals = df.values
             for row in vals:
-                col0 = str(row[0]).strip() if len(row) > 0 and pd.notna(row[0]) else ""
+                col0 = str(row[0]).strip() if pd.notna(row[0]) else ""
                 clean_date_col = col0.replace("-", "")
                 if not clean_date_col.isdigit():
                     continue
@@ -372,36 +410,25 @@ def scan_and_load_all_csvs():
                     continue
 
                 track = str(row[1]).strip() if len(row) > 1 and pd.notna(row[1]) else ""
-                rnum_str = (
-                    str(row[2]).strip() if len(row) > 2 and pd.notna(row[2]) else "1"
-                )
+                rnum_str = str(row[2]).strip() if len(row) > 2 and pd.notna(row[2]) else "1"
                 rnum = int(rnum_str) if rnum_str.isdigit() else 1
-                umaban_str = (
-                    str(row[3]).strip() if len(row) > 3 and pd.notna(row[3]) else "1"
-                )
+                umaban_str = str(row[3]).strip() if len(row) > 3 and pd.notna(row[3]) else "1"
                 cond = str(row[4]).strip() if len(row) > 4 and pd.notna(row[4]) else ""
-                track_type = (
-                    str(row[5]).strip() if len(row) > 5 and pd.notna(row[5]) else ""
-                )
+                track_type = str(row[5]).strip() if len(row) > 5 and pd.notna(row[5]) else ""
                 dist = str(row[6]).strip() if len(row) > 6 and pd.notna(row[6]) else ""
-                horse_name = (
-                    str(row[7]).strip() if len(row) > 7 and pd.notna(row[7]) else ""
-                )
+                horse_name = str(row[7]).strip() if len(row) > 7 and pd.notna(row[7]) else ""
                 sex = str(row[8]).strip() if len(row) > 8 and pd.notna(row[8]) else "牡"
                 age = str(row[9]).strip() if len(row) > 9 and pd.notna(row[9]) else "3"
-                jockey = (
-                    str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
-                )
-                kinryo = (
-                    str(row[11]).strip() if len(row) > 11 and pd.notna(row[11]) else "56"
-                )
+                jockey = str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
+                kinryo = str(row[11]).strip() if len(row) > 11 and pd.notna(row[11]) else "56"
 
-                # Col 27: 本賞金(万円)
+                if not horse_name:
+                    continue
+
                 prize_money = 0.0
                 if len(row) > 27 and str(row[27]).strip().isdigit():
                     prize_money = float(str(row[27]).strip())
 
-                # Col 29: 人気, Col 30: 単勝オッズ
                 pop_rank = None
                 if len(row) > 29 and str(row[29]).strip().isdigit():
                     pop_rank = int(str(row[29]).strip())
@@ -458,7 +485,7 @@ def scan_and_load_all_csvs():
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_past_races_index():
-    """2026過去走_1.csv〜10.csvを軽量インデックス化 (前走距離・前走クラス情報含む)"""
+    """過去走インデックス化"""
     past_files = sorted(
         glob.glob("./*過去走*.csv")
         + glob.glob("./*過去走*.CSV")
@@ -567,7 +594,6 @@ def analyze_horse_enhanced(
     past_list = past_index.get(horse_name, [])
     h_hash = get_stable_hash(horse_name)
 
-    # 1. 脚質判定
     real_style = "先行"
     if past_list:
         pass1_vals = []
@@ -593,7 +619,6 @@ def analyze_horse_enhanced(
     bad_flag = "標準"
     bad_comment = "過去の馬場実績・天候ともに標準的な適性範囲内です。"
 
-    # 2. 道悪評価
     if weather in ["雨", "雪"] and current_track_condition in [
         "稍重",
         "重",
@@ -656,52 +681,16 @@ def analyze_horse_enhanced(
             "良馬場開催のため、極端な馬場悪化による割り引き・加点はなし。"
         )
 
-    # 3. トラックバイアス評価
+    # --------------------------------------------------------------------------
+    # 拡張トラックバイアス判定ロジック (全10パターン対応)
+    # --------------------------------------------------------------------------
     tb_adj = 0.0
-    tb_comment = (
-        "トラックバイアスによる極端な有利・不利は認められません。"
-    )
-    if track_bias == "内前有利":
-        if waku <= 4 and real_style in ["逃げ", "先行"]:
-            tb_adj = 8.0
-            tb_comment = f"{waku}枠の絶好枠×前行き脚質。内前有利の馬場バイアスを最大限に活かせる展開です。"
-        elif real_style in ["逃げ", "先行"]:
-            tb_adj = 4.0
-            tb_comment = (
-                "内前有利馬場につき、好位でロスなく立ち回れるポジションが強みとなります。"
-            )
-        elif waku >= 7:
-            tb_adj = -5.0
-            tb_comment = f"{waku}枠の外枠により終始外を回らされる懸念あり（内前有利馬場バイアス不利）。"
-    elif track_bias == "外差し有利":
-        if waku >= 5 and real_style in ["差し", "追込"]:
-            tb_adj = 8.0
-            tb_comment = f"{waku}枠の外枠から伸びる馬場を通れる絶好条件。外差し馬場バイアスが強烈に味方します。"
-        elif real_style in ["差し", "追込"]:
-            tb_adj = 4.0
-            tb_comment = "直線で馬場の良い外目へ持ち出せる脚質につき、外差し展開の恩恵大。"
-        elif real_style == "逃げ":
-            tb_adj = -4.0
-            tb_comment = "外差し馬場につき、直線で外から一気に目標にされやすい厳しい展開。"
-    elif track_bias == "前残り強":
-        if real_style in ["逃げ", "先行"]:
-            tb_adj = 8.0
-            tb_comment = "前残り強馬場バイアスにつき、先頭集団でそのまま押し切る可能性が非常に高い状況です。"
-        elif real_style == "追込":
-            tb_adj = -6.0
-            tb_comment = "前残り強力な馬場傾向のため、後方からの追込は極めて厳しい展開が予想されます。"
-    elif track_bias == "外前有利":
-        if waku >= 5 and real_style in ["逃げ", "先行"]:
-            tb_adj = 6.0
-            tb_comment = f"{waku}枠からのスムーズな先行策が可能。外前有利馬場バイアスに合致しています。"
+    tb_comment = "トラックバイアスによる極端な有利・不利は認められません。"
 
-    # 4. PCI / 末脚持続力
-    pci_adj = 0.0
     pci_flag = "標準"
     up3_flag = "標準"
-    pci_comment = (
-        "ペース順応性および末脚性能は平均的な推移を示しています。"
-    )
+    pci_adj = 0.0
+    pci_comment = "ペース順応性および末脚性能は平均的な推移を示しています。"
 
     if past_list:
         up3_ranks = [
@@ -747,7 +736,82 @@ def analyze_horse_enhanced(
             pci_adj += 10.0
             pci_comment = "近走上がり上位を記録する決め手を保有。"
 
-    # 5. 前走クラス ＆ 前走着差 AI分析
+    if track_bias == "超イン伸び・最内ラチ有利":
+        if waku <= 2 and real_style in ["逃げ", "先行"]:
+            tb_adj = 10.0
+            tb_comment = f"{waku}枠の最内枠×前行き脚質。超イン伸び馬場の絶好位置を通れる最高の展開です。"
+        elif waku <= 3 or real_style in ["逃げ", "先行"]:
+            tb_adj = 5.0
+            tb_comment = "最内有利馬場につき、内目をロスなく回れる利点があります。"
+        elif waku >= 7:
+            tb_adj = -7.0
+            tb_comment = f"{waku}枠の外枠により内ラチ沿いに入れず厳しいバイアス不利。"
+    elif track_bias in ["内伸び・内前有利", "内前有利"]:
+        if waku <= 4 and real_style in ["逃げ", "先行"]:
+            tb_adj = 8.0
+            tb_comment = f"{waku}枠×好位前目。内前有利馬場を活かせる絶好配置です。"
+        elif real_style in ["逃げ", "先行"]:
+            tb_adj = 4.0
+            tb_comment = "内前有利傾向にマッチした前行き脚質。"
+        elif waku >= 7:
+            tb_adj = -5.0
+            tb_comment = f"{waku}枠の外枠により終始外を回らされる懸念あり。"
+    elif track_bias in ["外伸び・外差し有利", "外差し有利"]:
+        if waku >= 5 and real_style in ["差し", "追込"]:
+            tb_adj = 8.0
+            tb_comment = f"{waku}枠×外差し脚質。伸びる外目を一気に突き抜けるバイアス強者。"
+        elif real_style in ["差し", "追込"]:
+            tb_adj = 4.0
+            tb_comment = "直線で馬場の良い外目へ出せる差し・追込脚質が有利。"
+        elif real_style == "逃げ":
+            tb_adj = -4.0
+            tb_comment = "外差し馬場につき、荒れた内目を走らされ目標にされる展開。"
+    elif track_bias == "外前有利":
+        if waku >= 5 and real_style in ["逃げ", "先行"]:
+            tb_adj = 6.0
+            tb_comment = f"{waku}枠からの被せられないスムーズな先行策が可能。"
+        elif real_style in ["逃げ", "先行"]:
+            tb_adj = 3.0
+            tb_comment = "外前有利バイアスに適合する前行き脚質。"
+    elif track_bias == "大外一気・外全振り":
+        if waku >= 6 and real_style in ["差し", "追込"]:
+            tb_adj = 10.0
+            tb_comment = f"{waku}枠の外枠から綺麗な馬場を通れる絶好条件。外全振り馬場が強力追い風。"
+        elif waku <= 3:
+            tb_adj = -6.0
+            tb_comment = f"{waku}枠の内枠は荒れた馬場を通らされる可能性が高く割り引き。"
+    elif track_bias in ["超前残り・逃げ天国", "前残り強"]:
+        if real_style == "逃げ":
+            tb_adj = 10.0
+            tb_comment = "超前残り馬場につき、逃げ馬の押し切り濃厚。"
+        elif real_style == "先行":
+            tb_adj = 6.0
+            tb_comment = "前残り天国につき、好位キープからの粘り込み大。"
+        elif real_style == "追込":
+            tb_adj = -8.0
+            tb_comment = "後方追込は絶望的な超前残り馬場バイアス。"
+    elif track_bias == "前崩れ・差し必至":
+        if real_style in ["差し", "追込"]:
+            tb_adj = 8.0
+            tb_comment = "ハイペース・前崩れ展開につき末脚爆発の絶好好機。"
+        elif real_style in ["逃げ", "先行"]:
+            tb_adj = -8.0
+            tb_comment = "先行集団が総崩れするバイアスにつき逃げ・先行は大幅減点。"
+    elif track_bias == "超高速馬場（持ち時計重視）":
+        if pci_flag == "瞬発力勝負〇" or up3_flag == "キレ味抜群":
+            tb_adj = 6.0
+            tb_comment = "超高速馬場に対応できる切れ味・スピード性能を評価。"
+        elif real_style in ["逃げ", "先行"]:
+            tb_adj = 4.0
+            tb_comment = "高速馬場でのスピード持続力が活きる前行き脚質。"
+    elif track_bias == "タフ・スタミナ消耗馬場":
+        if pci_flag == "ハイペース耐性〇" or bad_flag == "道悪◎":
+            tb_adj = 8.0
+            tb_comment = "タフな馬場・スタミナ勝負への高い適性を評価。"
+        elif real_style == "追込":
+            tb_adj = 3.0
+            tb_comment = "他馬のスタミナが削がれる中でのバテ差し期待。"
+
     class_adj = 0.0
     class_flag = "標準"
     margin_flag = "標準"
@@ -817,7 +881,6 @@ def analyze_horse_enhanced(
                 "前走上位クラス格下げ×僅差好走によりメンバー中上位の能力を実証。"
             )
 
-    # 6. 距離短縮・距離延長（距離変化）AI分析
     dist_adj = 0.0
     dist_flag = "同距離"
     dist_comment = "前走と同等の距離設定につき適性面での大きな変化なし。"
@@ -893,69 +956,36 @@ st.markdown(
 date_races_map = scan_and_load_all_csvs()
 past_index = load_past_races_index()
 
-st.markdown("##### 🔍 レース検索 (三会場完全対応)")
+available_dates = sorted(list(date_races_map.keys()))
+
+st.markdown("##### 🔍 レース検索 (CSV実データ限定)")
+
+if not available_dates:
+    st.error("⚠️ 読み込める出走表CSV（20261003.csvなど）が見つかりません。ファイルを配備してください。")
+    st.stop()
+
 col_search_date, col_search_race = st.columns([1.2, 2.8])
 
-available_dates = sorted(list(date_races_map.keys())) if date_races_map else []
-
-default_date = (
-    datetime.date(2026, 10, 4)
-    if "2026-10-04" in available_dates
-    else (
-        datetime.datetime.strptime(available_dates[-1], "%Y-%m-%d").date()
-        if available_dates
-        else datetime.date(2026, 10, 4)
-    )
-)
-
 with col_search_date:
-    selected_date = st.date_input(
-        "📅 日付選択",
-        value=default_date,
-        min_value=datetime.date(2020, 1, 1),
-        max_value=datetime.date(2030, 12, 31),
+    selected_date_str = st.selectbox(
+        "📅 開催日を選択",
+        available_dates,
+        index=len(available_dates) - 1,
     )
 
-date_key = selected_date.strftime("%Y-%m-%d")
-races_for_date = date_races_map.get(date_key, [])
+races_for_date = date_races_map.get(selected_date_str, [])
 
 race_options = []
-if races_for_date:
-    for idx, r in enumerate(races_for_date):
-        label = (
-            f"🏇 【{r['track']}】 {r['rnum']}R {r['cond']} "
-            f"[{r['track_type']}{r['dist']}m] ({len(r['horses'])}頭立)"
-        )
-        race_options.append({"idx": idx, "label": label, "data": r})
-else:
-    demo_r1 = {
-        "track": "東京",
-        "rnum": 11,
-        "cond": "毎日王冠G2",
-        "track_type": "芝",
-        "dist": "1800",
-        "horses": [],
-    }
-    demo_r2 = {
-        "track": "京都",
-        "rnum": 11,
-        "cond": "京都大賞G2",
-        "track_type": "芝",
-        "dist": "2400",
-        "horses": [],
-    }
-    race_options = [
-        {
-            "idx": 0,
-            "label": "🏇 【東京】 11R 毎日王冠G2 [芝1800m] (17頭立) デモ",
-            "data": demo_r1,
-        },
-        {
-            "idx": 1,
-            "label": "🏇 【京都】 11R 京都大賞G2 [芝2400m] (18頭立) デモ",
-            "data": demo_r2,
-        },
-    ]
+for idx, r in enumerate(races_for_date):
+    label = (
+        f"🏇 【{r['track']}】 {r['rnum']}R {r['cond']} "
+        f"[{r['track_type']}{r['dist']}m] ({len(r['horses'])}頭立)"
+    )
+    race_options.append({"idx": idx, "label": label, "data": r})
+
+if not race_options:
+    st.warning("⚠️ 選択した開催日のレースデータがありません。")
+    st.stop()
 
 with col_search_race:
     selected_race_combo_idx = st.selectbox(
@@ -966,30 +996,7 @@ with col_search_race:
 
 selected_race_obj = race_options[selected_race_combo_idx]["data"]
 display_label = race_options[selected_race_combo_idx]["label"]
-
-if (
-    selected_race_obj
-    and "horses" in selected_race_obj
-    and selected_race_obj["horses"]
-):
-    current_race_horses = selected_race_obj["horses"]
-else:
-    current_race_horses = [
-        {
-            "枠番": (i % 8) + 1,
-            "馬番": i + 1,
-            "馬名": f"デモホース{i+1}",
-            "騎手": (
-                "武豊" if i == 0 else ("ルメール" if i == 1 else "川田将雅")
-            ),
-            "prize_money": 1000.0 if i < 3 else 0.0,
-            "raw_csv_odds": 2.5 if i == 0 else (4.8 if i == 1 else None),
-            "性別": "牡",
-            "年齢": "3",
-            "斤量": "56",
-        }
-        for i in range(15)
-    ]
+current_race_horses = selected_race_obj["horses"]
 
 clean_race_title = display_label.replace("🏇 ", "")
 current_race_cond_name = selected_race_obj.get("cond", "一般特別")
@@ -999,7 +1006,7 @@ st.markdown(
     f"""
 <div class="race-banner">
     <div class="race-banner-title">
-        🔍 選択レース: {date_key} 【 {clean_race_title} 】
+        🔍 選択レース: {selected_date_str} 【 {clean_race_title} 】
     </div>
     <div class="race-banner-sub">
         出走頭数: <b>{len(current_race_horses)}頭 AI完全解析</b> ｜ 距離変化(短縮/延長)・前走クラス/着差連動中
@@ -1023,7 +1030,18 @@ with col_env2:
 with col_env3:
     track_bias = st.selectbox(
         "🚩 トラックバイアス",
-        ["フラット", "内前有利", "外差し有利", "前残り強", "外前有利"],
+        [
+            "フラット",
+            "超イン伸び・最内ラチ有利",
+            "内伸び・内前有利",
+            "外伸び・外差し有利",
+            "外前有利",
+            "大外一気・外全振り",
+            "超前残り・逃げ天国",
+            "前崩れ・差し必至",
+            "超高速馬場（持ち時計重視）",
+            "タフ・スタミナ消耗馬場",
+        ],
     )
 
 with col_env4:
@@ -1046,9 +1064,7 @@ st.divider()
 processed_horses = []
 
 for h_data in current_race_horses:
-    horse_name = (
-        h_data["馬名"] if "馬名" in h_data else h_data.get("馬name", "不明馬")
-    )
+    horse_name = h_data.get("馬名", "不明馬")
     waku = h_data["枠番"]
     umaban = h_data["馬番"]
 
@@ -1106,11 +1122,12 @@ renka = ranked_horses[3:6] if len(ranked_horses) >= 6 else ranked_horses[3:]
 # 6. タブ別コンテンツ表示
 # ==============================================================================
 
-tab_rank, tab_pace, tab_tickets, tab_sim = st.tabs([
+tab_rank, tab_pace, tab_tickets, tab_sim, tab_b44 = st.tabs([
     "🏆 多角分析スコア",
     "🏇 展開・隊列マップ",
     "🎯 AI推奨馬券",
     "💰 馬券シミュレーター",
+    "📦 データ共有 (Base44)",
 ])
 
 with tab_rank:
@@ -1552,7 +1569,7 @@ with tab_sim:
                             ),
                         })
 
-                    elif plan in ["3連単 軸1頭マルチ", "3連単 軸1頭マルチ"]:
+                    elif plan == "3連単 軸1頭マルチ":
                         pts = 36
                         per_pt = math.floor((budget_per_plan / pts) / 100) * 100
                         tot_alloc = per_pt * pts
@@ -1615,3 +1632,65 @@ with tab_sim:
                     f" `{actual_total_used:,}円` （残予算:"
                     f" `{budget - actual_total_used:,}円`）"
                 )
+
+
+# --- 📦 Base44 データ共有・出力タブ ---
+with tab_b44:
+    st.subheader(f"📦 【{clean_race_title}】 Base44 データ連携 ＆ 復元ツール")
+
+    col_b1, col_b2 = st.columns(2)
+
+    with col_b1:
+        st.markdown("##### 📤 レースAI分析データのBase44エンコード")
+
+        export_data = {
+            "race_title": clean_race_title,
+            "date": selected_date_str,
+            "condition": current_race_cond_name,
+            "weather": weather,
+            "track_condition": current_track_condition,
+            "track_bias": track_bias,
+            "pace": expected_pace,
+            "honmei": f"{honmei['num']}番 {honmei['name']}" if honmei else "",
+            "taikou": f"{taikou['num']}番 {taikou['name']}" if taikou else "",
+            "tanana": f"{tanana['num']}番 {tanana['name']}" if tanana else "",
+            "rankings": [
+                {
+                    "rank": idx + 1,
+                    "num": h["num"],
+                    "name": h["name"],
+                    "score": h["total_score"],
+                    "odds": h["odds_str"],
+                }
+                for idx, h in enumerate(ranked_horses)
+            ],
+        }
+
+        json_bytes = json.dumps(export_data, ensure_ascii=False, indent=2).encode("utf-8")
+        b44_encoded = base44_encode(json_bytes)
+
+        st.text_area("🔑 生成された Base44 エンコード文字列", value=b44_encoded, height=140)
+
+        df_export = pd.DataFrame(export_data["rankings"])
+        csv_bytes = df_export.to_csv(index=False).encode("utf-8-sig")
+
+        st.download_button(
+            label="📥 AI分析スコアCSVをダウンロード",
+            data=csv_bytes,
+            file_name=f"KUINA_AI_{selected_date_str}_{clean_race_title}.csv",
+            mime="text/csv",
+        )
+
+    with col_b2:
+        st.markdown("##### 📥 Base44データのデコード・復元テスト")
+
+        input_b44 = st.text_area("Base44文字列を貼り付け", value=b44_encoded, height=140)
+
+        if st.button("🔓 Base44をデコードして復元"):
+            try:
+                decoded_bytes = base44_decode(input_b44)
+                decoded_json = json.loads(decoded_bytes.decode("utf-8"))
+                st.success("✅ Base44デコード成功！復元されたデータ:")
+                st.json(decoded_json)
+            except Exception as e:
+                st.error(f"❌ Base44デコード失敗: {e}")
