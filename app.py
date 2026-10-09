@@ -94,29 +94,31 @@ st.markdown(
         margin-bottom: 6px;
         line-height: 1.5;
     }
-    .horse-legend-item {
-        display: inline-flex;
-        align-items: center;
+    .ticket-card {
         background: #ffffff;
         border: 1px solid #cbd5e1;
-        border-radius: 8px;
-        padding: 4px 10px;
-        margin: 3px;
-        font-size: 12px;
-        font-weight: 700;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.02);
     }
-    .waku-badge {
-        width: 22px;
-        height: 22px;
-        border-radius: 50%;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 900;
-        font-size: 11px;
-        margin-right: 6px;
-        border: 1px solid rgba(0,0,0,0.15);
+    .ticket-title {
+        font-size: 15px;
+        font-weight: 800;
+        color: #1e1b4b;
+        margin-bottom: 6px;
+        display: flex;
+        justify-content: space-between;
+    }
+    .ticket-combo {
+        font-size: 14px;
+        font-weight: 700;
+        color: #4338ca;
+        background: #eef2ff;
+        padding: 6px 10px;
+        border-radius: 8px;
+        display: inline-block;
+        margin-top: 4px;
     }
     @media (max-width: 768px) {
         .kuina-header { padding: 16px 18px; border-radius: 12px; }
@@ -173,7 +175,7 @@ def parse_distance_num(dist_str):
 def get_jra_waku(umaban, total_horses):
     if total_horses <= 8:
         return umaban
-    capacities = [1, 1, 1, 1, 1, 1, 1, 1]
+    capacities =
     extras = total_horses - 8
     for i in range(7, -1, -1):
         if extras > 0:
@@ -235,7 +237,7 @@ def scan_and_load_all_csvs():
             if len(row) < 12:
                 continue
 
-            col0_val = row[0]
+            col0_val = row
             if pd.isna(col0_val):
                 continue
 
@@ -250,22 +252,22 @@ def scan_and_load_all_csvs():
             else:
                 continue
 
-            track = str(row[1]).strip() if pd.notna(row[1]) else ""
-            rnum_str = str(row[2]).strip() if pd.notna(row[2]) else "1"
+            track = str(row).strip() if pd.notna(row) else ""
+            rnum_str = str(row).strip() if pd.notna(row) else "1"
             rnum = int(rnum_str) if rnum_str.isdigit() else 1
-            umaban_str = str(row[3]).strip() if pd.notna(row[3]) else "1"
-            cond = str(row[4]).strip() if pd.notna(row[4]) else ""
-            track_type = str(row[5]).strip() if pd.notna(row[5]) else ""
-            dist = str(row[6]).strip() if pd.notna(row[6]) else ""
-            horse_name = str(row[7]).strip() if pd.notna(row[7]) else ""
-            jockey = str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
+            umaban_str = str(row).strip() if pd.notna(row) else "1"
+            cond = str(row).strip() if pd.notna(row) else ""
+            track_type = str(row).strip() if pd.notna(row) else ""
+            dist = str(row).strip() if pd.notna(row) else ""
+            horse_name = str(row).strip() if pd.notna(row) else ""
+            jockey = str(row).strip() if len(row) > 10 and pd.notna(row) else "未定"
 
             if not horse_name:
                 continue
 
             prize_money = 0.0
-            if len(row) > 27 and pd.notna(row[27]) and str(row[27]).strip().isdigit():
-                prize_money = float(str(row[27]).strip())
+            if len(row) > 27 and pd.notna(row) and str(row).strip().isdigit():
+                prize_money = float(str(row).strip())
 
             umaban_num = int(umaban_str) if umaban_str.isdigit() else 1
 
@@ -362,7 +364,7 @@ def load_past_races_index():
 
 
 # ==============================================================================
-# 4. AI解析 ＆ 隊列グラフィック生成エンジン (ホットスポット＆文字化け完全防止)
+# 4. AI解析 ＆ 隊列グラフィック生成エンジン
 # ==============================================================================
 
 def analyze_horse_with_index(
@@ -448,7 +450,7 @@ def analyze_horse_with_index(
     curr_dist_num = parse_distance_num(current_race_dist_str)
 
     if past_list and len(past_list) > 0:
-        last_race = past_list[0]
+        last_race = past_list
         last_dist_num = parse_distance_num(last_race.get("距離", ""))
         if curr_dist_num > 0 and last_dist_num > 0:
             diff = curr_dist_num - last_dist_num
@@ -479,26 +481,20 @@ def analyze_horse_with_index(
 
 
 def render_pace_map_graphic_advanced(processed_horses, race_title, track_type, track_bias):
-    """
-    芝・ダート動的背景 × バイアス・ホットスポット輝きオーバーレイ × 文字化けフリー隊列マップ
-    """
     fig, ax = plt.subplots(figsize=(12, 4.8), dpi=150)
 
-    # 芝 vs ダート 背景色切り替え
     is_dirt = "ダ" in str(track_type) or "ダート" in str(track_type)
-    bg_dark = '#381c0d' if is_dirt else '#064e3b'      # 全体外枠
-    track_dark = '#542d17' if is_dirt else '#0f766e'   # コース面
-    lane_color = '#78350f' if is_dirt else '#14b8a6'   # レーンライン
+    bg_dark = '#381c0d' if is_dirt else '#064e3b'
+    track_dark = '#542d17' if is_dirt else '#0f766e'
+    lane_color = '#78350f' if is_dirt else '#14b8a6'
 
     fig.patch.set_facecolor(bg_dark)
     ax.set_facecolor(track_dark)
 
-    # 背景レーンライン
     ax.axhline(0, color=lane_color, linewidth=1.5, linestyle='--')
     ax.axhline(1.5, color=lane_color, linewidth=1, linestyle=':')
     ax.axhline(-1.5, color=lane_color, linewidth=1, linestyle=':')
 
-    # 進行方向
     ax.annotate(
         "<- FINISH / GOAL",
         xy=(0.5, 2.3),
@@ -510,7 +506,6 @@ def render_pace_map_graphic_advanced(processed_horses, race_title, track_type, t
         ha='left'
     )
 
-    # 脚質ゾーン
     zones = [
         ("NIGE (FRONT)", 0.3, 2.7, '#f87171'),
         ("SENKO (PACE)", 3.0, 5.7, '#fbbf24'),
@@ -523,19 +518,17 @@ def render_pace_map_graphic_advanced(processed_horses, race_title, track_type, t
         ax.add_patch(rect)
         ax.text((xmin + xmax)/2, -2.0, ztitle, color=zcolor, fontsize=10, fontweight='bold', ha='center')
 
-    # トラックバイアスのホットスポット (HOT BIAS ZONE) 輝きオーバーレイ
     hot_rects = []
     if "イン伸び" in track_bias or "内前" in track_bias:
-        hot_rects.append((0.3, 5.7, 0.2, 1.8, "★ HOT BIAS ZONE (内・前有利)"))
+        hot_rects.append((0.3, 5.7, 0.2, 1.8))
     elif "外差し" in track_bias or "外伸び" in track_bias:
-        hot_rects.append((6.0, 11.7, -1.8, 1.8, "★ HOT BIAS ZONE (外・差し有利)"))
+        hot_rects.append((6.0, 11.7, -1.8, 1.8))
     elif "前残り" in track_bias or "逃げ" in track_bias:
-        hot_rects.append((0.3, 2.7, -1.8, 1.8, "★ HOT BIAS ZONE (逃げ・前残り絶好)"))
+        hot_rects.append((0.3, 2.7, -1.8, 1.8))
     elif "前崩れ" in track_bias or "差し必至" in track_bias:
-        hot_rects.append((6.0, 11.7, -1.8, 1.8, "★ HOT BIAS ZONE (ハイペース・差し爆発)"))
+        hot_rects.append((6.0, 11.7, -1.8, 1.8))
 
-    for xmin, xmax, ymin, ymax, label_text in hot_rects:
-        # ゴールドネオンのホットスポット描画
+    for xmin, xmax, ymin, ymax in hot_rects:
         hot_box = patches.FancyBboxPatch(
             (xmin, ymin), xmax - xmin, ymax - ymin,
             boxstyle="round,pad=0.1,rounding_size=0.2",
@@ -543,7 +536,6 @@ def render_pace_map_graphic_advanced(processed_horses, race_title, track_type, t
         )
         ax.add_patch(hot_box)
 
-    # 各馬の配置 (数字バッジ化で文字化けを完全回避)
     style_x_offsets = {
         "逃げ": (0.6, 2.4),
         "先行": (3.3, 5.4),
@@ -566,14 +558,12 @@ def render_pace_map_graphic_advanced(processed_horses, race_title, track_type, t
         y_pos = 1.2 - (cnt // 2) * 0.9 if cnt < 4 else -1.2 + (cnt % 2) * 0.6
         style_counts[style] += 1
 
-        # 馬番バッジ
         circle = patches.Circle(
             (x_pos, y_pos), 0.38,
             facecolor=bg_col, edgecolor='#f8fafc', linewidth=1.8, zorder=4
         )
         ax.add_patch(circle)
 
-        # 馬番数値 (ASCII数値のため文字化けの恐れゼロ)
         ax.text(
             x_pos, y_pos, str(num),
             color=text_col, fontsize=12, fontweight='bold',
@@ -740,9 +730,9 @@ ranked_horses = sorted(
     processed_horses, key=lambda x: x["total_score"], reverse=True
 )
 
-honmei = ranked_horses[0] if len(ranked_horses) > 0 else None
-taikou = ranked_horses[1] if len(ranked_horses) > 1 else None
-tanana = ranked_horses[2] if len(ranked_horses) > 2 else None
+honmei = ranked_horses if len(ranked_horses) > 0 else None
+taikou = ranked_horses if len(ranked_horses) > 1 else None
+tanana = ranked_horses if len(ranked_horses) > 2 else None
 renka = ranked_horses[3:6] if len(ranked_horses) >= 6 else ranked_horses[3:]
 
 
@@ -809,27 +799,34 @@ with tab_pace:
     st.pyplot(fig, use_container_width=True)
     plt.close(fig)
 
-    st.markdown("##### 📋 出走馬 枠色連動インデックス")
+    st.markdown("##### 📋 出走馬 枠色連動一覧")
 
-    legend_html_items = []
+    # クリーンなHTML（改行インデント崩れを全除去）
+    legend_html_list = []
     for h in sorted(processed_horses, key=lambda x: x["num"]):
         bg_col, text_col = WAKU_COLOR_MAP.get(h["waku"], ("#ffffff", "#000000"))
-        item_code = f"""
-        <div class="horse-legend-item">
-            <span class="waku-badge" style="background-color: {bg_col}; color: {text_col};">{h['num']}</span>
-            <span>{h['name']}</span>
-            <span style="color:#64748b; font-size:11px; margin-left:4px;">({h['jockey']})</span>
-        </div>
-        """
-        legend_html_items.append(item_code)
+        item_html = (
+            f'<div style="display:inline-flex; align-items:center; background:#ffffff; border:1px solid #cbd5e1; '
+            f'border-radius:8px; padding:5px 12px; margin:3px; font-size:13px; font-weight:700;">'
+            f'<span style="width:22px; height:22px; border-radius:50%; background-color:{bg_col}; color:{text_col}; '
+            f'display:inline-flex; align-items:center; justify-content:center; font-weight:900; font-size:11px; '
+            f'margin-right:8px; border:1px solid rgba(0,0,0,0.15);">{h["num"]}</span>'
+            f'<span style="color:#1e1b4b;">{h["name"]}</span>'
+            f'<span style="color:#64748b; font-size:11px; margin-left:6px;">({h["jockey"]})</span></div>'
+        )
+        legend_html_list.append(item_html)
 
-    st.markdown('<div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px;">' + "".join(legend_html_items) + '</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:8px;">{"".join(legend_html_list)}</div>',
+        unsafe_allow_html=True
+    )
 
 
 with tab_tickets:
     st.subheader(f"🎯 【{clean_race_title}】 AI推奨 馬券フォーメーション")
 
     if honmei and taikou:
+        # 印の早見表
         col_mark1, col_mark2, col_mark3, col_mark4 = st.columns(4)
         with col_mark1:
             st.info(f"**◎ 本命**: {honmei['num']}番 **{honmei['name']}**\n\nスコア: {honmei['total_score']} pt")
@@ -838,5 +835,100 @@ with tab_tickets:
         with col_mark3:
             st.warning(f"**▲ 単穴**: {tanana['num']}番 **{tanana['name']}**\n\nスコア: {tanana['total_score']} pt" if tanana else "なし")
         with col_mark4:
-            renka_names = ", ".join([f"{h['num']}番" for h in renka])
-            st.error(f"**△ 紐・穴**: {renka_names}\n\n展開好転予想馬")
+            renka_nums = [str(h['num']) for h in renka]
+            st.error(f"**△ 紐・穴**: {', '.join([f'{n}番' for n in renka_nums])}\n\n展開好転予想馬")
+
+        st.divider()
+        st.markdown("##### 🎰 推奨馬券フォーメーション (全5種類)")
+
+        h_num = str(honmei['num'])
+        t_num = str(taikou['num'])
+        a_num = str(tanana['num']) if tanana else ""
+        r_nums = [str(h['num']) for h in renka]
+
+        a_and_r = ([a_num] if a_num else []) + r_nums
+        a_and_r_str = ", ".join(a_and_r)
+
+        col_t1, col_t2 = st.columns(2)
+
+        with col_t1:
+            # 1. 馬連
+            umaren_combos = f"{h_num} - {t_num}" + (f", {a_num}" if a_num else "") + (f", {', '.join(r_nums)}" if r_nums else "")
+            st.markdown(
+                f"""
+                <div class="ticket-card">
+                    <div class="ticket-title">
+                        <span>🤝 馬連 (1頭軸流し)</span>
+                        <span style="font-size:12px; color:#6366f1;">推奨: 計 {len(a_and_r)+1} 点</span>
+                    </div>
+                    <div>軸: <b>{h_num}番 ({honmei['name']})</b> ➔ 相手: {t_num}, {a_and_r_str}</div>
+                    <div class="ticket-combo">買い目: {umaren_combos}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # 2. 馬単
+            umatan_combos = f"{h_num} ➔ {t_num}" + (f", {a_num}" if a_num else "") + (f", {', '.join(r_nums)}" if r_nums else "")
+            st.markdown(
+                f"""
+                <div class="ticket-card">
+                    <div class="ticket-title">
+                        <span>🎯 馬単 (1着固定)</span>
+                        <span style="font-size:12px; color:#6366f1;">推奨: 計 {len(a_and_r)+1} 点</span>
+                    </div>
+                    <div>1着: <b>{h_num}番 ({honmei['name']})</b> ➔ 2着: {t_num}, {a_and_r_str}</div>
+                    <div class="ticket-combo">買い目: {umatan_combos}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # 3. ワイド
+            wide_combos = f"{h_num} - {t_num}" + (f", {a_num}" if a_num else "")
+            st.markdown(
+                f"""
+                <div class="ticket-card">
+                    <div class="ticket-title">
+                        <span>💎 ワイド (上位人気・単穴BOX)</span>
+                        <span style="font-size:12px; color:#6366f1;">推奨: 計 3 点</span>
+                    </div>
+                    <div>BOX: <b>{h_num}番, {t_num}番</b> {f', {a_num}番' if a_num else ''}</div>
+                    <div class="ticket-combo">買い目: {wide_combos}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        with col_t2:
+            # 4. 3連複
+            sanrenpuku_combos = f"{h_num} - {t_num} - {a_and_r_str}"
+            st.markdown(
+                f"""
+                <div class="ticket-card">
+                    <div class="ticket-title">
+                        <span>🏆 3連複 (軸1頭ながし)</span>
+                        <span style="font-size:12px; color:#6366f1;">推奨: 計 {len(a_and_r)*(len(a_and_r)+1)//2} 点</span>
+                    </div>
+                    <div>軸: <b>{h_num}番</b> ➔ 相手: {t_num}, {a_and_r_str}</div>
+                    <div class="ticket-combo">買い目: {sanrenpuku_combos}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # 5. 3連単
+            sanrentan_combos = f"{h_num} ➔ {t_num}{f', {a_num}' if a_num else ''} ➔ {t_num}, {a_and_r_str}"
+            st.markdown(
+                f"""
+                <div class="ticket-card">
+                    <div class="ticket-title">
+                        <span>🔥 3連単 (フォーメーション)</span>
+                        <span style="font-size:12px; color:#6366f1;">推奨高配当狙い</span>
+                    </div>
+                    <div>1着: <b>{h_num}番</b> ➔ 2着: {t_num}{f', {a_num}' if a_num else ''} ➔ 3着: {t_num}, {a_and_r_str}</div>
+                    <div class="ticket-combo">買い目: {sanrentan_combos}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
