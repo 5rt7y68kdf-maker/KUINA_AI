@@ -229,26 +229,22 @@ def scan_and_load_all_csvs():
             except Exception:
                 pass
 
-        if df is None or df.empty or len(df.columns) < 12:
+        if df is None or df.empty or len(df.columns) < 11:
             continue
 
         races_by_key = {}
         for row in df.values:
-            if len(row) < 12:
+            if len(row) < 11:
                 continue
 
-            col0_val = row[0]
-            if pd.isna(col0_val):
+            col0_val = str(row[0]).strip().replace("-", "") if pd.notna(row[0]) else ""
+            if not col0_val.isdigit():
                 continue
 
-            col0 = str(col0_val).strip().replace("-", "")
-            if not col0.isdigit():
-                continue
-
-            if len(col0) == 6:
-                date_str = f"20{col0[:2]}-{col0[2:4]}-{col0[4:6]}"
-            elif len(col0) == 8:
-                date_str = f"{col0[:4]}-{col0[4:6]}-{col0[6:8]}"
+            if len(col0_val) == 6:
+                date_str = f"20{col0_val[:2]}-{col0_val[2:4]}-{col0_val[4:6]}"
+            elif len(col0_val) == 8:
+                date_str = f"{col0_val[:4]}-{col0_val[4:6]}-{col0_val[6:8]}"
             else:
                 continue
 
@@ -259,8 +255,10 @@ def scan_and_load_all_csvs():
             cond = str(row[4]).strip() if pd.notna(row[4]) else ""
             track_type = str(row[5]).strip() if pd.notna(row[5]) else ""
             dist = str(row[6]).strip() if pd.notna(row[6]) else ""
-            horse_name = str(row[10]).strip() if pd.notna(row[10]) else ""
-            jockey = str(row[11]).strip() if len(row) > 11 and pd.notna(row[11]) else "未定"
+            
+            # ★正しく割り当て: Index 7 ＝ 馬名, Index 10 ＝ 騎手★
+            horse_name = str(row[7]).strip() if pd.notna(row[7]) else ""
+            jockey = str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
 
             if not horse_name:
                 continue
