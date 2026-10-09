@@ -181,7 +181,7 @@ def get_jra_waku(umaban, total_horses):
 
 
 # ==============================================================================
-# 3. 超高速インデックス構築 ＆ データロード (Index構造)
+# 3. 超高速インデックス構築 ＆ データロード
 # ==============================================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -290,6 +290,18 @@ def scan_and_load_all_csvs():
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_past_races_index():
+    """軽量JSONインデックス(past_index.json)を最速読み込み。無ければCSVから安全補完。"""
+    json_candidates = ["past_index.json", "./data/past_index.json", "/workspace/knowledge/past_index.json"]
+    for jpath in json_candidates:
+        if os.path.exists(jpath):
+            try:
+                with open(jpath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if data:
+                        return data
+            except Exception:
+                pass
+
     past_files = (
         glob.glob("./*過去走*.csv") + glob.glob("./*過去走*.CSV")
         + glob.glob("./data/*過去走*.csv") + glob.glob("/workspace/knowledge/*過去走*.csv")
