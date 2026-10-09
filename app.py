@@ -93,21 +93,6 @@ st.markdown(
         font-size: 12px;
         font-weight: 700;
     }
-    .ticket-card {
-        background: #ffffff;
-        border: 1.5px solid #e2e8f0;
-        border-top: 4px solid #6366f1;
-        border-radius: 14px;
-        padding: 18px;
-        margin-bottom: 14px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-    }
-    .ticket-title {
-        font-size: 16px;
-        font-weight: 800;
-        color: #1e1b4b;
-        margin-bottom: 10px;
-    }
     .score-badge {
         font-size: 26px;
         font-weight: 900;
@@ -139,12 +124,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ==============================================================================
-# 2. ユーティリティ ＆ パース関数
-# ==============================================================================
 
 def parse_class_rank(class_str):
-    """クラスの格（階級）を数値化 (G1:9 〜 新馬:1)"""
     s = str(class_str)
     if any(k in s for k in ["G1", "GⅠ", "GI"]):
         return 9
@@ -168,7 +149,6 @@ def parse_class_rank(class_str):
 
 
 def parse_distance_num(dist_str):
-    """距離文字列から数値を取得"""
     if not dist_str:
         return 0
     m = re.search(r"\d{4}", str(dist_str))
@@ -181,7 +161,6 @@ def parse_distance_num(dist_str):
 
 
 def get_jra_waku(umaban, total_horses):
-    """頭数に応じたJRA標準枠番算出"""
     if total_horses <= 8:
         return umaban
     capacities = [1, 1, 1, 1, 1, 1, 1, 1]
@@ -198,13 +177,8 @@ def get_jra_waku(umaban, total_horses):
     return 8
 
 
-# ==============================================================================
-# 3. 超高速インデックス構築 ＆ データロード (Index構造)
-# ==============================================================================
-
 @st.cache_data(ttl=3600, show_spinner=False)
 def scan_and_load_all_csvs():
-    """出走表CSVの超高速ロード (エラー耐性強化・キャッシュ最適化)"""
     raw_files = (
         glob.glob("./*.csv") + glob.glob("./*.CSV")
         + glob.glob("./data/*.csv") + glob.glob("./data/*.CSV")
@@ -232,10 +206,14 @@ def scan_and_load_all_csvs():
 
         races_by_key = {}
         for row in df.values:
-            if len(row) < 12 or pd.isna(row[0]):
+            if len(row) < 12:
                 continue
 
-            col0 = str(row[0]).strip().replace("-", "")
+            col0_val = row[0]
+            if pd.isna(col0_val):
+                continue
+
+            col0 = str(col0_val).strip().replace("-", "")
             if not col0.isdigit():
                 continue
 
@@ -246,14 +224,14 @@ def scan_and_load_all_csvs():
             else:
                 continue
 
-            track = str(row[1]).strip() if len(row) > 1 and pd.notna(row[1]) else ""
-            rnum_str = str(row[2]).strip() if len(row) > 2 and pd.notna(row[2]) else "1"
+            track = str(row[1]).strip() if pd.notna(row[1]) else ""
+            rnum_str = str(row[2]).strip() if pd.notna(row[2]) else "1"
             rnum = int(rnum_str) if rnum_str.isdigit() else 1
-            umaban_str = str(row[3]).strip() if len(row) > 3 and pd.notna(row[3]) else "1"
-            cond = str(row[4]).strip() if len(row) > 4 and pd.notna(row[4]) else ""
-            track_type = str(row[5]).strip() if len(row) > 5 and pd.notna(row[5]) else ""
-            dist = str(row[6]).strip() if len(row) > 6 and pd.notna(row[6]) else ""
-            horse_name = str(row[7]).strip() if len(row) > 7 and pd.notna(row[7]) else ""
+            umaban_str = str(row[3]).strip() if pd.notna(row[3]) else "1"
+            cond = str(row[4]).strip() if pd.notna(row[4]) else ""
+            track_type = str(row[5]).strip() if pd.notna(row[5]) else ""
+            dist = str(row[6]).strip() if pd.notna(row[6]) else ""
+            horse_name = str(row[7]).strip() if pd.notna(row[7]) else ""
             jockey = str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
 
             if not horse_name:
@@ -305,7 +283,6 @@ def scan_and_load_all_csvs():
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_past_races_index():
-    """過去走データの高速検索用インデックス構築 (horse_past_map)"""
     past_files = (
         glob.glob("./*過去走*.csv") + glob.glob("./*過去走*.CSV")
         + glob.glob("./data/*過去走*.csv") + glob.glob("/workspace/knowledge/*過去走*.csv")
@@ -349,7 +326,6 @@ def load_past_races_index():
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_historical_stats():
-    """過去5年（2020-2025）の枠番別・脚質別統計データをロード"""
     waku_files = glob.glob("./*枠番*.csv") + glob.glob("./data/*枠番*.csv") + glob.glob("/workspace/knowledge/*枠番*.csv")
     kyakushitsu_files = glob.glob("./*脚質*.csv") + glob.glob("./data/*脚質*.csv") + glob.glob("/workspace/knowledge/*脚質*.csv")
 
@@ -374,10 +350,6 @@ def load_historical_stats():
     return df_waku, df_kyakushitsu
 
 
-# ==============================================================================
-# 4. インデックス参照型 AI解析エンジン
-# ==============================================================================
-
 def analyze_horse_with_index(
     horse_name,
     umaban,
@@ -390,15 +362,13 @@ def analyze_horse_with_index(
     track_bias,
     expected_pace,
 ):
-    """インデックスデータを利用した高精度AI解析"""
     past_list = past_index.get(horse_name, [])
 
-    # 推定脚質判定
     real_style = "先行"
     if past_list:
         pass1_vals = [
             float(re.search(r"\d+", p["通過1"]).group())
-            for p in past_list if re.search(r"\d+", p.get("通過1", ""))
+            for p in past_list if p.get("通過1") and re.search(r"\d+", str(p["通過1"]))
         ]
         if pass1_vals:
             avg_p1 = sum(pass1_vals) / len(pass1_vals)
@@ -424,7 +394,6 @@ def analyze_horse_with_index(
             bad_flag = "道悪懸念"
             bad_comment = "重馬場×追込脚質のため展開面での大幅割り引き。"
 
-    # トラックバイアス補正 (全10種類)
     tb_adj = 0.0
     tb_comment = "選択されたトラックバイアスとの適合度を解析。"
 
@@ -459,13 +428,13 @@ def analyze_horse_with_index(
             tb_adj = 8.0
             tb_comment = "ハイペース・前崩れ展開につき末脚爆発の絶好好機。"
 
-    # 前走インデックス比較 (距離変化・クラス・着差)
     dist_flag = "適性距離"
     dist_comment = "前走と同等の距離設定推移。"
     curr_dist_num = parse_distance_num(current_race_dist_str)
 
     if past_list and len(past_list) > 0:
-        last_dist_num = parse_distance_num(past_list[0].get("距離", ""))
+        last_race = past_list[0]
+        last_dist_num = parse_distance_num(last_race.get("距離", ""))
         if curr_dist_num > 0 and last_dist_num > 0:
             diff = curr_dist_num - last_dist_num
             if diff <= -200:
@@ -493,10 +462,6 @@ def analyze_horse_with_index(
         "total_score": total_score,
     }
 
-
-# ==============================================================================
-# 5. メイン画面 UI構築
-# ==============================================================================
 
 st.markdown(
     """
@@ -608,7 +573,6 @@ with col_env4:
 
 st.divider()
 
-# --- インデックス参照型 全馬スコア演算 ---
 processed_horses = []
 
 for h_data in current_race_horses:
@@ -654,10 +618,6 @@ taikou = ranked_horses[1] if len(ranked_horses) > 1 else None
 tanana = ranked_horses[2] if len(ranked_horses) > 2 else None
 renka = ranked_horses[3:6] if len(ranked_horses) >= 6 else ranked_horses[3:]
 
-
-# ==============================================================================
-# 6. タブ別表示 (Style & View)
-# ==============================================================================
 
 tab_rank, tab_pace, tab_tickets, tab_stats = st.tabs([
     "🏆 AI分析スコア",
