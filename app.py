@@ -256,7 +256,6 @@ def scan_and_load_all_csvs():
             track_type = str(row[5]).strip() if pd.notna(row[5]) else ""
             dist = str(row[6]).strip() if pd.notna(row[6]) else ""
             
-            # ★正しく割り当て: Index 7 ＝ 馬名, Index 10 ＝ 騎手★
             horse_name = str(row[7]).strip() if pd.notna(row[7]) else ""
             jockey = str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
 
@@ -594,7 +593,7 @@ with st.spinner("データを読み込んでいます..."):
 
 available_dates = sorted(list(date_races_map.keys()))
 
-st.markdown("##### 🔍 レース選択 (CSV実データ連動)")
+st.markdown("##### レース選択")
 
 if not available_dates:
     st.error("⚠️ 読み込める出走表CSV（20261003.csvなど）が見つかりません。")
@@ -614,7 +613,7 @@ races_for_date = date_races_map.get(selected_date_str, [])
 race_options = [
     {
         "idx": idx,
-        "label": f"🏇 【{r['track']}】 {r['rnum']}R {r['cond']} [{r['track_type']}{r['dist']}m] ({len(r['horses'])}頭立)",
+        "label": f"【{r['track']}】 {r['rnum']}R {r['cond']} [{r['track_type']}{r['dist']}m] ({len(r['horses'])}頭立)",
         "data": r,
     }
     for idx, r in enumerate(races_for_date)
@@ -628,7 +627,7 @@ with col_search_race:
     )
 
 selected_race_obj = race_options[selected_race_combo_idx]["data"]
-clean_race_title = race_options[selected_race_combo_idx]["label"].replace("🏇 ", "")
+clean_race_title = race_options[selected_race_combo_idx]["label"]
 
 current_race_horses = selected_race_obj["horses"]
 current_race_cond_name = selected_race_obj.get("cond", "一般特別")
@@ -642,7 +641,7 @@ st.markdown(
         🔍 選択レース: {selected_date_str} 【 {clean_race_title} 】
     </div>
     <div class="race-banner-sub">
-        出走頭数: <b>{len(current_race_horses)}頭 AI完全解析</b> ｜ 過去走インデックス連動中
+        出走頭数: <b>{len(current_race_horses)}頭 AI完全解析</b>
     </div>
 </div>
 """,
