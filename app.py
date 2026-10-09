@@ -237,7 +237,7 @@ def scan_and_load_all_csvs():
             if len(row) < 12:
                 continue
 
-            col0_val = row
+            col0_val = row[0]
             if pd.isna(col0_val):
                 continue
 
@@ -252,22 +252,22 @@ def scan_and_load_all_csvs():
             else:
                 continue
 
-            track = str(row).strip() if pd.notna(row) else ""
-            rnum_str = str(row).strip() if pd.notna(row) else "1"
+            track = str(row[1]).strip() if pd.notna(row[1]) else ""
+            rnum_str = str(row[2]).strip() if pd.notna(row[2]) else "1"
             rnum = int(rnum_str) if rnum_str.isdigit() else 1
-            umaban_str = str(row).strip() if pd.notna(row) else "1"
-            cond = str(row).strip() if pd.notna(row) else ""
-            track_type = str(row).strip() if pd.notna(row) else ""
-            dist = str(row).strip() if pd.notna(row) else ""
-            horse_name = str(row).strip() if pd.notna(row) else ""
-            jockey = str(row).strip() if len(row) > 10 and pd.notna(row) else "未定"
+            umaban_str = str(row[3]).strip() if pd.notna(row[3]) else "1"
+            cond = str(row[4]).strip() if pd.notna(row[4]) else ""
+            track_type = str(row[5]).strip() if pd.notna(row[5]) else ""
+            dist = str(row[6]).strip() if pd.notna(row[6]) else ""
+            horse_name = str(row[10]).strip() if pd.notna(row[10]) else ""
+            jockey = str(row[11]).strip() if len(row) > 11 and pd.notna(row[11]) else "未定"
 
             if not horse_name:
                 continue
 
             prize_money = 0.0
-            if len(row) > 27 and pd.notna(row) and str(row).strip().isdigit():
-                prize_money = float(str(row).strip())
+            if len(row) > 27 and pd.notna(row[27]) and str(row[27]).strip().isdigit():
+                prize_money = float(str(row[27]).strip())
 
             umaban_num = int(umaban_str) if umaban_str.isdigit() else 1
 
@@ -450,7 +450,7 @@ def analyze_horse_with_index(
     curr_dist_num = parse_distance_num(current_race_dist_str)
 
     if past_list and len(past_list) > 0:
-        last_race = past_list
+        last_race = past_list[0]
         last_dist_num = parse_distance_num(last_race.get("距離", ""))
         if curr_dist_num > 0 and last_dist_num > 0:
             diff = curr_dist_num - last_dist_num
