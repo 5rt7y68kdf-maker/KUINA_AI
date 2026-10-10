@@ -175,7 +175,7 @@ def parse_distance_num(dist_str):
 def get_jra_waku(umaban, total_horses):
     if total_horses <= 8:
         return umaban
-    capacities = [1] * 8
+    capacities = [1, 1, 1, 1, 1, 1, 1, 1]
     extras = total_horses - 8
     for i in range(7, -1, -1):
         if extras > 0:
@@ -256,9 +256,12 @@ def scan_and_load_all_csvs():
             track_type = str(row[5]).strip() if pd.notna(row[5]) else ""
             dist = str(row[6]).strip() if pd.notna(row[6]) else ""
             
-            # 馬名=Index 7, 騎手=Index 10
+            # 馬名=Index 7, 騎手=Index 10, 父=Index 16, 母=Index 17, 母父=Index 20
             horse_name = str(row[7]).strip() if pd.notna(row[7]) else ""
             jockey = str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
+            father = str(row[16]).strip() if len(row) > 16 and pd.notna(row[16]) else "不明"
+            mother = str(row[17]).strip() if len(row) > 17 and pd.notna(row[17]) else "不明"
+            mother_father = str(row[20]).strip() if len(row) > 20 and pd.notna(row[20]) else "不明"
 
             if not horse_name:
                 continue
@@ -285,6 +288,9 @@ def scan_and_load_all_csvs():
                 "馬番": umaban_num,
                 "馬名": horse_name,
                 "騎手": jockey,
+                "父": father,
+                "母": mother,
+                "母父": mother_father,
                 "prize_money": prize_money,
             })
 
@@ -362,8 +368,74 @@ def load_past_races_index():
 
 
 # ==============================================================================
-# 4. 全10バイアス完全連動 AI解析エンジン
+# 4. 脚質 ＆ 血統統合 AI解析エンジン
 # ==============================================================================
+
+def analyze_bloodline_suitability(father, mother_father, track_type, track_condition, track_bias, dist_num):
+    blood_score_adj = 0.0
+    comments = []
+
+    f_str = str(father or "")
+    mf_str = str(mother_father or "")
+
+    is_dirt = "ダ" in str(track_type) or "ダート" in str(track_type)
+    is_wet = str(track_condition) in ["稍重", "重", "不良"]
+
+    dirt_sires = [
+        "ヘニーヒューズ", "シニスターミニスター", "マジェスティックウォリアー", "パイロ",
+        "サウスヴィグラス", "ドレフォン", "ホッコータルマエ", "ルヴァンスレーヴ",
+        "カリフォルニアクローム", "オメガパフューム", "スマートボーイ", "Uncaptured",
+        "アジアエクスプレス", "クリエイター", "ディスクリートキャット", "キンシャサノキセキ",
+        "ダンカーク", "モーニン", "ゴールドアリュール", "カジノドライヴ"
+    ]
+    turf_sires = [
+        "ディープインパクト", "キズナ", "エピファネイア", "ロードカナロア", "モーリス",
+        "サートゥルナーリア", "スワーヴリチャード", "ドゥラメンテ", "キタサンブラック",
+        "ハーツクライ", "ジャスタウェイ", "ダイワメジャー", "リアルスティール",
+        "レイデオロ", "ベンバトル", "ロジャーバローズ", "ディーマジェスティ", "シルバーステート"
+    ]
+    wet_sires = [
+        "キズナ", "オルフェーヴル", "ルーラーシップ", "ドレフォン", "ハービンジャー",
+        "ゴールドシップ", "バゴ", "ステイゴールド", "エピファネイア", "シンボリクリスエス",
+        "メイショウサムソン", "スクリーンヒーロー", "ヴァンゴッホ", "マジェスティックウォリアー", "パイロ"
+    ]
+    stamina_sires = [
+        "ハーツクライ", "ステイゴールド", "ゴールドシップ", "キセキ", "エピファネイア",
+        "ルーラーシップ", "タイトルホルダー", "シュヴァルグラン", "ワールドエース",
+        "ダンスインザダーク", "オルフェーヴル"
+    ]
+
+    if is_dirt:
+        if any(s in f_str for s in dirt_sires) or any(s in mf_str for s in dirt_sires):
+            blood_score_adj += 4.0
+            comments.append(f"父({f_str})・母父({mf_str})ラインに強力ダート血統を保持。ダート戦への血統適性は極めて良好。")
+        elif any(s in f_str for s in turf_sires):
+            blood_score_adj -= 2.0
+            comments.append(f"父({f_str})は芝実績中心の系統。ダートでの砂かぶり・パワー対応力がポイント。")
+    else:
+        if any(s in f_str for s in turf_sires) or any(s in mf_str for s in turf_sires):
+            blood_score_adj += 3.0
+            comments.append(f"父({f_str})・母父({mf_str})は芝でキレを生かす王道血統ライン。芝コースでの瞬発力発揮に好適。")
+
+    if is_wet:
+        if any(s in f_str for s in wet_sires) or any(s in mf_str for s in wet_sires):
+            blood_score_adj += 5.0
+            sire_match = f_str if any(s in f_str for s in wet_sires) else mf_str
+            comments.append(f"道悪・重馬場でパワーを発揮する血統（{sire_match}）。水分を含んだ馬場は好材料。")
+
+    if track_bias == "超高速馬場（持ち時計重視）":
+        if any(s in f_str for s in turf_sires):
+            blood_score_adj += 3.0
+            comments.append("高速馬場に強いスピード上位の血統構成。速い時計勝負に高適合。")
+    elif track_bias in ["タフ・スタミナ消耗馬場", "前崩れ・差し必至"]:
+        if any(s in f_str for s in stamina_sires) or any(s in mf_str for s in stamina_sires):
+            blood_score_adj += 4.0
+            comments.append("スタミナ・底力に優れた長距離血統ライン。タフな消耗戦バイアスにベストマッチ。")
+
+    if not comments:
+        comments.append(f"父{f_str}×母父{mf_str}のバランス型血統構成。コース条件への適応力は十分。")
+
+    return blood_score_adj, " ".join(comments)
 
 def analyze_horse_with_index(
     horse_name,
@@ -378,6 +450,8 @@ def analyze_horse_with_index(
     weather,
     track_bias,
     expected_pace,
+    father="不明",
+    mother_father="不明",
 ):
     past_list = past_index.get(horse_name, [])
 
@@ -415,7 +489,7 @@ def analyze_horse_with_index(
             best_wet_finish = min([
                 int(re.search(r"\d+", p.get("着順", "99")).group())
                 for p in wet_past_races if re.search(r"\d+", p.get("着順", "99"))
-            ] or (99,))
+            ] or [99])
 
             if best_wet_finish <= 3:
                 bad_score_adj += 8.0
@@ -448,14 +522,14 @@ def analyze_horse_with_index(
     waku_comment = ""
     is_dirt = "ダ" in str(current_track_type) or "ダート" in str(current_track_type)
 
-    if waku in (1, 2):
+    if waku in [1, 2]:
         if is_dirt:
             waku_score_adj -= 2.0
             waku_comment = f"最内{waku}枠。ダート戦のため被せられた際の砂被り（キックバック）リスクに注意が必要。"
         else:
             waku_score_adj += 3.0
             waku_comment = f"絶好の{waku}枠（内枠）。最短距離をロスなく立ち回れる経済コースの恩恵大。"
-    elif waku in (3, 4, 5, 6):
+    elif waku in [3, 4, 5, 6]:
         waku_score_adj += 2.0
         waku_comment = f"自在性の高い{waku}枠（中枠）。展開に応じたポジション取りがしやすく包まれるリスクも低い好配置。"
     else:
@@ -474,16 +548,16 @@ def analyze_horse_with_index(
     tb_comment = ""
 
     if track_bias == "超イン伸び・最内ラチ有利":
-        if waku in (1, 2) and real_style in ["逃げ", "先行"]:
+        if waku in [1, 2] and real_style in ["逃げ", "先行"]:
             tb_adj = 12.0
             tb_comment = f" ➔ 【バイアス絶好】{waku}枠の最内ラチ沿い×前行き脚質。最内を通れる最高の展開です。"
-        elif waku in (1, 2):
+        elif waku in [1, 2]:
             tb_adj = 6.0
             tb_comment = f" ➔ 【バイアス良好】{waku}枠の最内枠。内目のグリーンベルトを通れる好位置。"
-        elif waku in (3, 4) and real_style in ["逃げ", "先行"]:
+        elif waku in [3, 4] and real_style in ["逃げ", "先行"]:
             tb_adj = 4.0
             tb_comment = f" ➔ 【バイアスやや良好】{waku}枠からすんなり内に入れて先行できれば強みを発揮。"
-        elif waku in (7, 8):
+        elif waku in [7, 8]:
             tb_adj = -8.0
             tb_comment = f" ➔ 【バイアス大逆風】{waku}枠の外枠によりインコースに入れず大幅不利。"
 
@@ -524,10 +598,10 @@ def analyze_horse_with_index(
             tb_comment = f" ➔ 【バイアス逆風】内枠のため荒れた内ラチ沿いに閉じ込められる懸念。"
 
     elif track_bias == "大外一気・外全振り":
-        if waku in (7, 8) and real_style in ["差し", "追込"]:
+        if waku in [7, 8] and real_style in ["差し", "追込"]:
             tb_adj = 12.0
             tb_comment = f" ➔ 【バイアス絶好】{waku}枠×外全振り馬場。馬場のいい大外から一気に突き抜ける大チャンス。"
-        elif waku in (5, 6) and real_style in ["差し", "追込"]:
+        elif waku in [5, 6] and real_style in ["差し", "追込"]:
             tb_adj = 8.0
             tb_comment = f" ➔ 【バイアス良好】外目進出で外全振りバイアスの恩恵享受。"
         elif waku <= 2 and real_style in ["逃げ", "先行"]:
@@ -586,10 +660,15 @@ def analyze_horse_with_index(
 
     waku_full_comment = waku_comment + tb_comment
 
-    # 5. 距離適性・分析
+    # 5. 血統適性解析
+    curr_dist_num = parse_distance_num(current_race_dist_str)
+    blood_adj, blood_comment = analyze_bloodline_suitability(
+        father, mother_father, current_track_type, current_track_condition, track_bias, curr_dist_num
+    )
+
+    # 6. 距離適性・分析
     dist_flag = "適性距離"
     dist_comment = "前走と同等の距離設定推移。"
-    curr_dist_num = parse_distance_num(current_race_dist_str)
 
     if past_list and len(past_list) > 0:
         last_race = past_list[0]
@@ -603,13 +682,14 @@ def analyze_horse_with_index(
                 dist_flag = f"距離延長(+{diff}m)"
                 dist_comment = f"前走{last_dist_num}mから+{diff}mへの距離延長。道中のゆったりした追走が可能。"
 
-    total_score = round(70.0 + bad_score_adj + waku_score_adj + tb_adj, 1)
+    total_score = round(70.0 + bad_score_adj + waku_score_adj + tb_adj + blood_adj, 1)
 
     return {
         "real_style": real_style,
         "bad_flag": bad_flag,
         "bad_comment": bad_comment,
         "waku_comment": waku_full_comment,
+        "blood_comment": blood_comment,
         "dist_flag": dist_flag,
         "dist_comment": dist_comment,
         "total_score": total_score,
@@ -842,6 +922,8 @@ for h_data in current_race_horses:
     horse_name = h_data.get("馬名", "不明馬")
     waku = h_data["枠番"]
     umaban = h_data["馬番"]
+    father = h_data.get("父", "不明")
+    mother_father = h_data.get("母父", "不明")
 
     eval_res = analyze_horse_with_index(
         horse_name,
@@ -856,6 +938,8 @@ for h_data in current_race_horses:
         weather,
         track_bias,
         expected_pace,
+        father=father,
+        mother_father=mother_father,
     )
 
     processed_horses.append({
@@ -863,11 +947,14 @@ for h_data in current_race_horses:
         "num": umaban,
         "name": horse_name,
         "jockey": h_data.get("騎手", "未定"),
+        "father": father,
+        "mother_father": mother_father,
         "total_score": eval_res["total_score"],
         "real_style": eval_res["real_style"],
         "bad_flag": eval_res["bad_flag"],
         "bad_comment": eval_res["bad_comment"],
         "waku_comment": eval_res["waku_comment"],
+        "blood_comment": eval_res["blood_comment"],
         "dist_flag": eval_res["dist_flag"],
         "dist_comment": eval_res["dist_comment"],
     })
@@ -916,8 +1003,11 @@ with tab_rank:
         <div class="horse-card" style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px;">
             <div style="flex: 1 1 200px; min-width: 180px;">
                 <h4 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 800; color: #1e1b4b;">{crown} {horse['name']}</h4>
-                <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">
+                <div style="font-size: 12px; color: #64748b; margin-bottom: 3px;">
                     枠{horse['waku']} {horse['num']}番 ｜ 騎手: {horse['jockey']}
+                </div>
+                <div style="font-size: 12px; color: #4338ca; font-weight: 700; margin-bottom: 4px;">
+                    🧬 父: {horse['father']} ｜ 母父: {horse['mother_father']}
                 </div>
                 <div style="font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px;">
                     想定脚質: <b>{horse['real_style']}</b>
@@ -929,6 +1019,8 @@ with tab_rank:
                 <div class="analysis-text">{horse["waku_comment"]}</div>
                 <div class="analysis-label">🌧️ 馬場適性・過去実績評価</div>
                 <div class="analysis-text">{horse["bad_comment"]}</div>
+                <div class="analysis-label">🧬 血統・コース適性評価</div>
+                <div class="analysis-text">{horse["blood_comment"]}</div>
                 <div class="analysis-label">📏 距離推移・展開分析</div>
                 <div class="analysis-text">{horse["dist_comment"]}</div>
             </div>
