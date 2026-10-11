@@ -2,6 +2,7 @@ import os
 import glob
 import re
 import json
+import math
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -138,42 +139,29 @@ st.markdown(
 
 def parse_class_rank(class_str):
     s = str(class_str)
-    if any(k in s for k in ["G1", "GⅠ", "GI"]):
-        return 9
-    if any(k in s for k in ["G2", "GⅡ", "GII"]):
-        return 8
-    if any(k in s for k in ["G3", "GⅢ", "GIII", "重賞"]):
-        return 7
-    if any(k in s for k in ["オープン", "OP", "リステッド", "L"]):
-        return 6
-    if "3勝" in s or "1600万" in s:
-        return 5
-    if "2勝" in s or "1000万" in s:
-        return 4
-    if "1勝" in s or "500万" in s:
-        return 3
-    if "未勝利" in s:
-        return 2
-    if "新馬" in s:
-        return 1
+    if any(k in s for k in ["G1", "GⅠ", "GI"]): return 9
+    if any(k in s for k in ["G2", "GⅡ", "GII"]): return 8
+    if any(k in s for k in ["G3", "GⅢ", "GIII", "重賞"]): return 7
+    if any(k in s for k in ["オープン", "OP", "リステッド", "L"]): return 6
+    if "3勝" in s or "1600万" in s: return 5
+    if "2勝" in s or "1000万" in s: return 4
+    if "1勝" in s or "500万" in s: return 3
+    if "未勝利" in s: return 2
+    if "新馬" in s: return 1
     return 4
 
 
 def parse_distance_num(dist_str):
-    if not dist_str:
-        return 0
+    if not dist_str: return 0
     m = re.search(r"\d{4}", str(dist_str))
-    if m:
-        return int(m.group())
+    if m: return int(m.group())
     m2 = re.search(r"\d{3,4}", str(dist_str))
-    if m2:
-        return int(m2.group())
+    if m2: return int(m2.group())
     return 0
 
 
 def get_jra_waku(umaban, total_horses):
-    if total_horses <= 8:
-        return umaban
+    if total_horses <= 8: return umaban
     capacities = [1 for _ in range(8)]
     extras = total_horses - 8
     for i in range(7, -1, -1):
@@ -182,26 +170,18 @@ def get_jra_waku(umaban, total_horses):
             extras -= 1
     curr = 0
     for waku_idx, cap in enumerate(capacities, start=1):
-        if curr < umaban <= curr + cap:
-            return waku_idx
+        if curr < umaban <= curr + cap: return waku_idx
         curr += cap
     return 8
 
 
-# JRA標準枠色マップ (背景色, 文字色)
 WAKU_COLOR_MAP = {
-    1: ("#ffffff", "#000000"),  # 1枠: 白
-    2: ("#1e293b", "#ffffff"),  # 2枠: 黒
-    3: ("#ef4444", "#ffffff"),  # 3枠: 赤
-    4: ("#3b82f6", "#ffffff"),  # 4枠: 青
-    5: ("#eab308", "#000000"),  # 5枠: 黄
-    6: ("#22c55e", "#ffffff"),  # 6枠: 緑
-    7: ("#f97316", "#ffffff"),  # 7枠: 橙
-    8: ("#ec4899", "#ffffff"),  # 8枠: 桃
+    1: ("#ffffff", "#000000"), 2: ("#1e293b", "#ffffff"), 3: ("#ef4444", "#ffffff"), 4: ("#3b82f6", "#ffffff"),
+    5: ("#eab308", "#000000"), 6: ("#22c55e", "#ffffff"), 7: ("#f97316", "#ffffff"), 8: ("#ec4899", "#ffffff"),
 }
 
 # ==============================================================================
-# 3. 高速インデックスロード (出走表・過去走・過去5年コース統計)
+# 3. 高速インデックス ＆ コース統計ロード
 # ==============================================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -225,27 +205,21 @@ def scan_and_load_all_csvs():
             try:
                 df = pd.read_csv(fpath, encoding=enc, header=None, dtype=str, on_bad_lines="skip")
                 break
-            except Exception:
-                pass
+            except Exception: pass
 
         if df is None or df.empty or len(df.columns) < 11:
             continue
 
         races_by_key = {}
         for row in df.values:
-            if len(row) < 11:
-                continue
+            if len(row) < 11: continue
 
             col0_val = str(row[0]).strip().replace("-", "") if pd.notna(row[0]) else ""
-            if not col0_val.isdigit():
-                continue
+            if not col0_val.isdigit(): continue
 
-            if len(col0_val) == 6:
-                date_str = f"20{col0_val[:2]}-{col0_val[2:4]}-{col0_val[4:6]}"
-            elif len(col0_val) == 8:
-                date_str = f"{col0_val[:4]}-{col0_val[4:6]}-{col0_val[6:8]}"
-            else:
-                continue
+            if len(col0_val) == 6: date_str = f"20{col0_val[:2]}-{col0_val[2:4]}-{col0_val[4:6]}"
+            elif len(col0_val) == 8: date_str = f"{col0_val[:4]}-{col0_val[4:6]}-{col0_val[6:8]}"
+            else: continue
 
             track = str(row[1]).strip() if pd.notna(row[1]) else ""
             rnum_str = str(row[2]).strip() if pd.notna(row[2]) else "1"
@@ -254,42 +228,26 @@ def scan_and_load_all_csvs():
             cond = str(row[4]).strip() if pd.notna(row[4]) else ""
             track_type = str(row[5]).strip() if pd.notna(row[5]) else ""
             dist = str(row[6]).strip() if pd.notna(row[6]) else ""
-            
             horse_name = str(row[7]).strip() if pd.notna(row[7]) else ""
             jockey = str(row[10]).strip() if len(row) > 10 and pd.notna(row[10]) else "未定"
+            sire = str(row[16]).strip() if len(row) > 16 and pd.notna(row[16]) else ""
+            dam_sire = str(row[20]).strip() if len(row) > 20 and pd.notna(row[20]) else ""
 
-            if not horse_name:
-                continue
+            if not horse_name: continue
 
-            # 父(16) / 母父(20)
-            sire = str(row[16]).strip() if len(row) > 16 and pd.notna(row[16]) else "不明"
-            dam_sire = str(row[20]).strip() if len(row) > 20 and pd.notna(row[20]) else "不明"
-
-            prize_money = 0.0
-            if len(row) > 27 and pd.notna(row[27]) and str(row[27]).strip().isdigit():
-                prize_money = float(str(row[27]).strip())
-
+            prize_money = float(str(row[27]).strip()) if len(row) > 27 and pd.notna(row[27]) and str(row[27]).strip().isdigit() else 0.0
             umaban_num = int(umaban_str) if umaban_str.isdigit() else 1
 
             key = (date_str, track, rnum)
             if key not in races_by_key:
                 races_by_key[key] = {
-                    "date": date_str,
-                    "track": track,
-                    "rnum": rnum,
-                    "cond": cond,
-                    "track_type": track_type,
-                    "dist": dist,
-                    "horses": [],
+                    "date": date_str, "track": track, "rnum": rnum,
+                    "cond": cond, "track_type": track_type, "dist": dist, "horses": [],
                 }
 
             races_by_key[key]["horses"].append({
-                "馬番": umaban_num,
-                "馬名": horse_name,
-                "騎手": jockey,
-                "父": sire,
-                "母父": dam_sire,
-                "prize_money": prize_money,
+                "馬番": umaban_num, "馬名": horse_name, "騎手": jockey,
+                "父": sire, "母父": dam_sire, "prize_money": prize_money,
             })
 
         for key, rdata in races_by_key.items():
@@ -304,11 +262,63 @@ def scan_and_load_all_csvs():
             date_races_map[d_str].append(rdata)
 
     for d_str in date_races_map:
-        date_races_map[d_str] = sorted(
-            date_races_map[d_str], key=lambda x: (x["track"], x["rnum"])
-        )
+        date_races_map[d_str] = sorted(date_races_map[d_str], key=lambda x: (x["track"], x["rnum"]))
 
     return date_races_map
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_course_stats_index():
+    raw_files = (
+        glob.glob("./*.csv") + glob.glob("./*.CSV")
+        + glob.glob("./data/*.csv") + glob.glob("./data/*.CSV")
+        + glob.glob("/workspace/knowledge/*.csv") + glob.glob("/workspace/knowledge/*.CSV")
+    )
+
+    waku_file = next((f for f in set(raw_files) if "枠番" in os.path.basename(f)), None)
+    kyaku_file = next((f for f in set(raw_files) if "脚質" in os.path.basename(f) and "枠番" not in os.path.basename(f)), None)
+
+    course_stats = {}
+
+    if waku_file:
+        for enc in ["cp932", "shift_jis", "utf-8"]:
+            try:
+                df_w = pd.read_csv(waku_file, encoding=enc)
+                if "場所･距離" in df_w.columns:
+                    for c_name, g in df_w.groupby("場所･距離"):
+                        w_dict = {}
+                        tot_r = g["ﾚｰｽ数"].sum() if "ﾚｰｽ数" in g.columns else 1
+                        for w_i in range(1, 9):
+                            col = f"{['一','１','2','3','4','5','6','7','8'][w_i]}枠" if w_i == 1 else f"{w_i}枠"
+                            col_full = next((c for c in g.columns if str(w_i) in c or (w_i==1 and "１" in c)), None)
+                            if col_full and col_full in g.columns:
+                                w_dict[w_i] = round(g[col_full].astype(float).mean(), 1)
+                            else:
+                                w_dict[w_i] = 12.5
+                        course_stats[c_name] = {"waku": w_dict, "total_races": tot_r, "kyakushitsu": {}}
+                break
+            except Exception: pass
+
+    if kyaku_file:
+        for enc in ["cp932", "shift_jis", "utf-8"]:
+            try:
+                df_k = pd.read_csv(kyaku_file, encoding=enc)
+                if "場所･距離" in df_k.columns:
+                    for c_name, g in df_k.groupby("場所･距離"):
+                        k_dict = {}
+                        for style in ["逃げ", "先行", "差し", "追込"]:
+                            if style in g.columns:
+                                k_dict[style] = round(g[style].astype(float).mean(), 1)
+                            else:
+                                k_dict[style] = 15.0
+                        if c_name not in course_stats:
+                            course_stats[c_name] = {"waku": {i: 12.5 for i in range(1, 9)}, "total_races": 0, "kyakushitsu": k_dict}
+                        else:
+                            course_stats[c_name]["kyakushitsu"] = k_dict
+                break
+            except Exception: pass
+
+    return course_stats
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -319,10 +329,8 @@ def load_past_races_index():
             try:
                 with open(jpath, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    if data:
-                        return data
-            except Exception:
-                pass
+                    if data: return data
+            except Exception: pass
 
     past_files = (
         glob.glob("./*過去走*.csv") + glob.glob("./*過去走*.CSV")
@@ -336,127 +344,35 @@ def load_past_races_index():
             try:
                 df = pd.read_csv(fpath, encoding=enc, dtype=str, on_bad_lines="skip")
                 break
-            except Exception:
-                pass
+            except Exception: pass
 
         if df is None or df.empty or "馬名" not in df.columns:
             continue
 
         for row in df.to_dict("records"):
             h_name = str(row.get("馬名", "")).strip()
-            if not h_name:
-                continue
+            if not h_name: continue
 
             if h_name not in horse_past_map:
                 horse_past_map[h_name] = []
 
             if len(horse_past_map[h_name]) < 5:
                 horse_past_map[h_name].append({
-                    "通過1": str(row.get("通過1", "")),
-                    "馬場状態": str(row.get("馬場状態", "良")),
-                    "着順": str(row.get("着順", "99")),
-                    "上り3F順位": str(row.get("上り3F順位", "99")),
-                    "PCI": str(row.get("PCI", "50.0")),
-                    "クラス": str(row.get("クラス", row.get("前走クラス", ""))),
-                    "着差": str(row.get("着差", "0.5")),
-                    "距離": str(row.get("距離", "1800")),
+                    "通過1": str(row.get("通過1", "")), "馬場状態": str(row.get("馬場状態", "良")),
+                    "着順": str(row.get("着順", "99")), "距離": str(row.get("距離", "1800")),
                 })
 
     return horse_past_map
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_stats_index():
-    waku_files = glob.glob("./*枠番*.csv") + glob.glob("./data/*枠番*.csv") + glob.glob("/workspace/knowledge/*枠番*.csv")
-    kyaku_files = glob.glob("./*脚質*.csv") + glob.glob("./data/*脚質*.csv") + glob.glob("/workspace/knowledge/*脚質*.csv")
-    
-    df_w = None
-    for fpath in set(waku_files):
-        for enc in ["cp932", "shift_jis", "utf-8"]:
-            try:
-                df = pd.read_csv(fpath, encoding=enc, dtype=str, on_bad_lines="skip")
-                if "場所･距離" in df.columns or "場所・距離" in df.columns:
-                    df_w = df
-                    break
-            except Exception: pass
-        if df_w is not None: break
-
-    df_k = None
-    for fpath in set(kyaku_files):
-        for enc in ["cp932", "shift_jis", "utf-8"]:
-            try:
-                df = pd.read_csv(fpath, encoding=enc, dtype=str, on_bad_lines="skip")
-                if "場所･距離" in df.columns or "場所・距離" in df.columns:
-                    df_k = df
-                    break
-            except Exception: pass
-        if df_k is not None: break
-
-    stats_map = {}
-    if df_w is None or df_k is None:
-        return stats_map
-
-    col_loc_w = "場所･距離" if "場所･距離" in df_w.columns else "場所・距離"
-    col_loc_k = "場所･距離" if "場所･距離" in df_k.columns else "場所・距離"
-    waku_cols = ["１枠", "２枠", "３枠", "４枠", "５枠", "６枠", "７枠", "８枠"]
-
-    for target in df_w[col_loc_w].dropna().unique():
-        w_rows = df_w[df_w[col_loc_w] == target]
-        k_rows = df_k[df_k[col_loc_k] == target]
-
-        races_w = pd.to_numeric(w_rows["ﾚｰｽ数"], errors="coerce").fillna(0).sum() if "ﾚｰｽ数" in w_rows.columns else len(w_rows)
-        races_k = pd.to_numeric(k_rows["ﾚｰｽ数"], errors="coerce").fillna(0).sum() if "ﾚｰｽ数" in k_rows.columns else len(k_rows)
-
-        waku_pcts = {}
-        for w_idx, col in enumerate(waku_cols, start=1):
-            if col in w_rows.columns and races_w > 0:
-                vals = pd.to_numeric(w_rows[col], errors="coerce").fillna(0)
-                weights = pd.to_numeric(w_rows["ﾚｰｽ数"], errors="coerce").fillna(1)
-                weighted_val = (vals * weights).sum() / races_w
-                waku_pcts[w_idx] = round(float(weighted_val), 1)
-            else:
-                waku_pcts[w_idx] = 12.5
-
-        kyaku_pcts = {}
-        for k in ["逃げ", "先行", "差し", "追込"]:
-            if k in k_rows.columns and races_k > 0:
-                vals = pd.to_numeric(k_rows[k], errors="coerce").fillna(0)
-                weights = pd.to_numeric(k_rows["ﾚｰｽ数"], errors="coerce").fillna(1)
-                weighted_val = (vals * weights).sum() / races_k
-                kyaku_pcts[k] = round(float(weighted_val), 1)
-            else:
-                kyaku_pcts[k] = 25.0
-
-        stats_map[str(target).strip()] = {
-            "total_races": int(races_w),
-            "waku": waku_pcts,
-            "kyakushitsu": kyaku_pcts,
-        }
-
-    return stats_map
-
-
 # ==============================================================================
-# 4. 全10バイアス ＆ 血統 ＆ コース統計 完全連動 AI解析エンジン
+# 4. 全10バイアス ＆ 過去5年コース統計 ＆ 血統 AI解析エンジン
 # ==============================================================================
 
 def analyze_horse_with_index(
-    horse_name,
-    umaban,
-    waku,
-    total_horses,
-    current_race_cond,
-    current_race_dist_str,
-    current_track_type,
-    past_index,
-    current_track_condition,
-    weather,
-    track_bias,
-    expected_pace,
-    sire_name="",
-    dam_sire_name="",
-    stats_index=None,
-    track_name="",
+    horse_name, umaban, waku, total_horses, current_race_cond, current_race_dist_str,
+    current_track_type, past_index, current_track_condition, weather, track_bias, expected_pace,
+    track_location="東京", course_stats={}, sire="", dam_sire=""
 ):
     past_list = past_index.get(horse_name, [])
 
@@ -477,16 +393,11 @@ def analyze_horse_with_index(
         styles = ["逃げ", "先行", "差し", "追込"]
         real_style = styles[(umaban * 3 + len(horse_name)) % 4]
 
-    # 2. 馬場適性詳細評価
+    # 2. 馬場適性評価
     bad_score_adj = 0.0
     bad_flag = "標準"
     bad_comment = ""
-
-    wet_past_races = [
-        p for p in past_list
-        if p.get("馬場状態") in ["稍重", "重", "不良"]
-    ]
-
+    wet_past_races = [p for p in past_list if p.get("馬場状態") in ["稍重", "重", "不良"]]
     is_wet_track = current_track_condition in ["稍重", "重", "不良"]
 
     if is_wet_track:
@@ -522,7 +433,7 @@ def analyze_horse_with_index(
     else:
         bad_comment = "良馬場開催につき、スピード・瞬発力（上り性能）をフルに発揮できる好条件です。"
 
-    # 3. 枠番・配置基礎評価
+    # 3. 枠番配置 ＆ コース過去5年統計評価
     waku_score_adj = 0.0
     waku_comment = ""
     is_dirt = "ダ" in str(current_track_type) or "ダート" in str(current_track_type)
@@ -548,185 +459,108 @@ def analyze_horse_with_index(
             else:
                 waku_comment = f"外枠の{waku}枠。スムーズに包まれず運べる反面、コーナーでの距離ロスには注意。"
 
-    # 4. 全10バイアス完全連動・高感度加減点エンジン
+    # コース統計連動
+    dist_num = parse_distance_num(current_race_dist_str)
+    tt_short = "ダ" if is_dirt else "芝"
+    c_key = f"{track_location}・{tt_short}{dist_num}m"
+
+    c_info = course_stats.get(c_key, {})
+    stat_waku_pct = c_info.get("waku", {}).get(waku, 12.5)
+    stat_kyaku_pct = c_info.get("kyakushitsu", {}).get(real_style, 20.0)
+
+    stat_waku_adj = (stat_waku_pct - 12.5) * 0.4
+    stat_kyaku_adj = (stat_kyaku_pct - 25.0) * 0.3
+    stat_total_adj = round(stat_waku_adj + stat_kyaku_adj, 1)
+
+    stat_comment = f" ➔ 【過去5年コース統計】{c_key}の実測複勝率：{waku}枠({stat_waku_pct}%)・脚質[{real_style}]({stat_kyaku_pct}%)(補正:{stat_total_adj:+.1f}pt)。"
+    waku_full_comment = waku_comment + stat_comment
+
+    # 4. 全10バイアスエンジン
     tb_adj = 0.0
     tb_comment = ""
 
     if track_bias == "フラット":
         tb_adj = 0.0
-        tb_comment = " ➔ 【バイアス平穏】特定の枠・脚質への偏りがないフラット馬場。実力通りの力勝負が期待できます。"
-
+        tb_comment = " ➔ 【バイアス平穏】特定の枠・脚質への偏りがないフラット馬場。実力通りの力勝勝負が期待できます。"
     elif track_bias == "超イン伸び・最内ラチ有利":
-        if waku in (1, 2) and real_style in ["逃げ", "先行"]:
-            tb_adj = 12.0
-            tb_comment = f" ➔ 【バイアス絶好】{waku}枠の最内ラチ沿い×前行き脚質。最内を通れる最高の展開です。"
-        elif waku in (1, 2):
-            tb_adj = 6.0
-            tb_comment = f" ➔ 【バイアス良好】{waku}枠の最内枠。内目のグリーンベルトを通れる好位置。"
-        elif waku in (3, 4) and real_style in ["逃げ", "先行"]:
-            tb_adj = 4.0
-            tb_comment = f" ➔ 【バイアスやや良好】{waku}枠からすんなり内に入れて先行できれば強みを発揮。"
-        elif waku in (7, 8):
-            tb_adj = -8.0
-            tb_comment = f" ➔ 【バイアス大逆風】{waku}枠の外枠によりインコースに入れず大幅不利。"
-
+        if waku in (1, 2) and real_style in ["逃げ", "先行"]: tb_adj, tb_comment = 12.0, f" ➔ 【バイアス絶好】{waku}枠の最内ラチ沿い×前行き脚質。最内を通れる最高の展開です。"
+        elif waku in (1, 2): tb_adj, tb_comment = 6.0, f" ➔ 【バイアス良好】{waku}枠の最内枠。内目のグリーンベルトを通れる好位置。"
+        elif waku in (3, 4) and real_style in ["逃げ", "先行"]: tb_adj, tb_comment = 4.0, f" ➔ 【バイアスやや良好】すんなり内に入れて先行できれば強みを発揮。"
+        elif waku in (7, 8): tb_adj, tb_comment = -8.0, f" ➔ 【バイアス大逆風】{waku}枠の外枠によりインコースに入れず大幅不利。"
     elif track_bias in ["内伸び・内前有利", "内前有利"]:
-        if waku <= 4 and real_style in ["逃げ", "先行"]:
-            tb_adj = 10.0
-            tb_comment = f" ➔ 【バイアス絶好】{waku}枠×内前有利。内ラチ沿いを先手奪取できる絶好配置。"
-        elif waku <= 4 and real_style == "差し":
-            tb_adj = 4.0
-            tb_comment = f" ➔ 【バイアス良好】内枠からロスなく差してこれる有利ポジション。"
-        elif waku >= 5 and real_style == "追込":
-            tb_adj = -6.0
-            tb_comment = f" ➔ 【バイアス逆風】外枠×後方追込。内前有利な馬場に泣く厳しい展開。"
-        elif waku >= 7:
-            tb_adj = -4.0
-            tb_comment = f" ➔ 【バイアスやや逆風】外枠につきコーナーでの内入れ苦戦。"
-
+        if waku <= 4 and real_style in ["逃げ", "先行"]: tb_adj, tb_comment = 10.0, f" ➔ 【バイアス絶好】{waku}枠×内前有利。内ラチ沿いを先手奪取できる絶好配置。"
+        elif waku <= 4 and real_style == "差し": tb_adj, tb_comment = 4.0, f" ➔ 【バイアス良好】内枠からロスなく差してこれる有利ポジション。"
+        elif waku >= 5 and real_style == "追込": tb_adj, tb_comment = -6.0, f" ➔ 【バイアス逆風】外枠×後方追込。内前有利な馬場に泣く厳しい展開。"
+        elif waku >= 7: tb_adj, tb_comment = -4.0, f" ➔ 【バイアスやや逆風】外枠につきコーナーでの内入れ苦戦。"
     elif track_bias in ["外伸び・外差し有利", "外差し有利"]:
-        if waku >= 5 and real_style in ["差し", "追込"]:
-            tb_adj = 10.0
-            tb_comment = f" ➔ 【バイアス絶好】{waku}枠×外差し脚質。荒れた内を避けて一気に突き抜ける絶好機会。"
-        elif waku >= 5 and real_style == "先行":
-            tb_adj = 4.0
-            tb_comment = f" ➔ 【バイアス良好】外から被せるように前目をつけて馬場の良い部分を通過可能。"
-        elif waku <= 2 and real_style in ["逃げ", "先行"]:
-            tb_adj = -6.0
-            tb_comment = f" ➔ 【バイアス逆風】最内枠×逃げ・先行。痛んだ内目を通らされる懸念。"
-
+        if waku >= 5 and real_style in ["差し", "追込"]: tb_adj, tb_comment = 10.0, f" ➔ 【バイアス絶好】{waku}枠×外差し脚質。荒れた内を避けて一気に突き抜ける絶好機会。"
+        elif waku >= 5 and real_style == "先行": tb_adj, tb_comment = 4.0, f" ➔ 【バイアス良好】外から被せるように前目をつけて馬場の良い部分を通過可能。"
+        elif waku <= 2 and real_style in ["逃げ", "先行"]: tb_adj, tb_comment = -6.0, f" ➔ 【バイアス逆風】最内枠×逃げ・先行。痛んだ内目を通らされる懸念。"
     elif track_bias == "外前有利":
-        if waku >= 5 and real_style in ["逃げ", "先行"]:
-            tb_adj = 10.0
-            tb_comment = f" ➔ 【バイアス絶好】{waku}枠（外枠）×前行き脚質。揉まれず綺麗な外目を通って先行できる最高の展開。"
-        elif waku <= 4 and real_style in ["逃げ", "先行"]:
-            tb_adj = 4.0
-            tb_comment = f" ➔ 【バイアス普通】内前目の配置ですが、外から被せられる展開に注意。"
-        elif real_style in ["差し", "追込"]:
-            tb_adj = -6.0
-            tb_comment = f" ➔ 【バイアス逆風】前目の馬が綺麗な外目を通って止まらないバイアスにつき、後方からは届きにくい。"
-
+        if waku >= 5 and real_style in ["逃げ", "先行"]: tb_adj, tb_comment = 10.0, f" ➔ 【バイアス絶好】{waku}枠（外枠）×前行き脚質。揉まれず綺麗な外目を通って先行できる最高の展開。"
+        elif waku <= 4 and real_style in ["逃げ", "先行"]: tb_adj, tb_comment = 4.0, f" ➔ 【バイアス普通】内前目の配置ですが、外から被せられる展開に注意。"
+        elif real_style in ["差し", "追込"]: tb_adj, tb_comment = -6.0, f" ➔ 【バイアス逆風】前目の馬が綺麗な外目を通って止まらないバイアスにつき厳しい。"
     elif track_bias == "大外一気・外全振り":
-        if waku in (7, 8) and real_style in ["差し", "追込"]:
-            tb_adj = 12.0
-            tb_comment = f" ➔ 【バイアス絶好】{waku}枠×外全振り馬場。馬場のいい大外から一気に突き抜ける大チャンス。"
-        elif waku in (5, 6) and real_style in ["差し", "追込"]:
-            tb_adj = 8.0
-            tb_comment = f" ➔ 【バイアス良好】外目進出で外全振りバイアスの恩恵享受。"
-        elif waku <= 2 and real_style in ["逃げ", "先行"]:
-            tb_adj = -10.0
-            tb_comment = f" ➔ 【バイアス大逆風】最内枠×前行き。痛んだ内目通過で完全目標にされる展開。"
-
+        if waku in (7, 8) and real_style in ["差し", "追込"]: tb_adj, tb_comment = 12.0, f" ➔ 【バイアス絶好】{waku}枠×外全振り馬場。馬場のいい大外から一気に突き抜ける大チャンス。"
+        elif waku in (5, 6) and real_style in ["差し", "追込"]: tb_adj, tb_comment = 8.0, f" ➔ 【バイアス良好】外目進出で外全振りバイアスの恩恵享受。"
+        elif waku <= 2 and real_style in ["逃げ", "先行"]: tb_adj, tb_comment = -10.0, f" ➔ 【バイアス大逆風】最内枠×前行き。痛んだ内目通過で完全目標にされる展開。"
     elif track_bias in ["超前残り・逃げ天国", "前残り強"]:
-        if real_style == "逃げ":
-            tb_adj = 12.0
-            tb_comment = " ➔ 【バイアス絶好】逃げ天国馬場につき、マイペース逃げからの押し切り濃厚。"
-        elif real_style == "先行":
-            tb_adj = 7.0
-            tb_comment = " ➔ 【バイアス良好】絶好の好位前目で粘り込みを図れる展開。"
-        elif real_style == "追込":
-            tb_adj = -10.0
-            tb_comment = " ➔ 【バイアス大逆風】後方追込には絶望的な超前残りバイアス。"
-        elif real_style == "差し":
-            tb_adj = -5.0
-            tb_comment = " ➔ 【バイアスやや逆風】前が止まらないため差し届かずのリスク。"
-
+        if real_style == "逃げ": tb_adj, tb_comment = 12.0, " ➔ 【バイアス絶好】逃げ天国馬場につき、マイペース逃げからの押し切り濃厚。"
+        elif real_style == "先行": tb_adj, tb_comment = 7.0, " ➔ 【バイアス良好】絶好の好位前目で粘り込みを図れる展開。"
+        elif real_style == "追込": tb_adj, tb_comment = -10.0, " ➔ 【バイアス大逆風】後方追込には絶望的な超前残りバイアス。"
+        elif real_style == "差し": tb_adj, tb_comment = -5.0, " ➔ 【バイアスやや逆風】前が止まらないため差し届かずのリスク。"
     elif track_bias in ["前崩れ・差し必至"]:
-        if real_style == "追込":
-            tb_adj = 12.0
-            tb_comment = " ➔ 【バイアス絶好】前崩れ確実の展開につき、直線大外一気での末脚爆発期待。"
-        elif real_style == "差し":
-            tb_adj = 8.0
-            tb_comment = " ➔ 【バイアス良好】好位差し展開でバテた先行馬を一網打尽。"
-        elif real_style == "逃げ":
-            tb_adj = -10.0
-            tb_comment = " ➔ 【バイアス大逆風】ハイペース巻き込まれで直線完全失速のリスク。"
-        elif real_style == "先行":
-            tb_adj = -5.0
-            tb_comment = " ➔ 【バイアスやや逆風】早い仕掛けで脚が上がる危険性。"
-
+        if real_style == "追込": tb_adj, tb_comment = 12.0, " ➔ 【バイアス絶好】前崩れ確実の展開につき、直線大外一気での末脚爆発期待。"
+        elif real_style == "差し": tb_adj, tb_comment = 8.0, " ➔ 【バイアス良好】好位差し展開でバテた先行馬を一網打尽。"
+        elif real_style == "逃げ": tb_adj, tb_comment = -10.0, " ➔ 【バイアス大逆風】ハイペース巻き込まれで直線完全失速のリスク。"
+        elif real_style == "先行": tb_adj, tb_comment = -5.0, " ➔ 【バイアスやや逆風】早い仕掛けで脚が上がる危険性。"
     elif track_bias == "超高速馬場（持ち時計重視）":
-        if real_style in ["逃げ", "先行"]:
-            tb_adj = 8.0
-            tb_comment = " ➔ 【バイアス良好】超高速馬場×スピード持続力。前々から止まらないレース質に適合。"
-        elif waku <= 4:
-            tb_adj = 4.0
-            tb_comment = " ➔ 【バイアスやや良好】高速馬場のインコースロスなし追走メリット。"
-        elif real_style == "追込":
-            tb_adj = -5.0
-            tb_comment = " ➔ 【バイアス逆風】高速時計決着で後方からの追い出し遅れ懸念。"
-
+        if real_style in ["逃げ", "先行"]: tb_adj, tb_comment = 8.0, " ➔ 【バイアス良好】超高速馬場×スピード持続力。前々から止まらないレース質に適合。"
+        elif waku <= 4: tb_adj, tb_comment = 4.0, " ➔ 【バイアスやや良好】高速馬場のインコースロスなし追走メリット。"
+        elif real_style == "追込": tb_adj, tb_comment = -5.0, " ➔ 【バイアス逆風】高速時計決着で後方からの追い出し遅れ懸念。"
     elif track_bias == "タフ・スタミナ消耗馬場":
-        if real_style in ["差し", "追込"]:
-            tb_adj = 8.0
-            tb_comment = " ➔ 【バイアス良好】スタミナ消耗戦につき、底力と末脚を発揮できる展開。"
-        elif bad_flag in ["道悪◎(好実績)", "道悪◯"]:
-            tb_adj = 6.0
-            tb_comment = " ➔ 【バイアス良好】タフな馬場での過去実績が実を結ぶ消耗戦歓迎タイプ。"
-        elif real_style == "逃げ":
-            tb_adj = -6.0
-            tb_comment = " ➔ 【バイアス逆風】タフ馬場での逃げは直線最後で目標にされてバテるリスク。"
+        if real_style in ["差し", "追込"]: tb_adj, tb_comment = 8.0, " ➔ 【バイアス良好】スタミナ消耗戦につき、底力と末脚を発揮できる展開。"
+        elif bad_flag in ["道悪◎(好実績)", "道悪◯"]: tb_adj, tb_comment = 6.0, " ➔ 【バイアス良好】タフな馬場での過去実績が実を結ぶ消耗戦歓迎タイプ。"
+        elif real_style == "逃げ": tb_adj, tb_comment = -6.0, " ➔ 【バイアス逆風】タフ馬場での逃げは直線最後で目標にされてバテるリスク。"
 
-    # 5. 血統適性評価エンジン (父・母父)
-    blood_score_adj = 0.0
+    waku_full_comment = waku_full_comment + tb_comment
+
+    # 5. 血統適性評価
+    blood_adj = 0.0
     blood_comment = ""
-    sire_str = str(sire_name)
-    dam_sire_str = str(dam_sire_name)
+    sire_str = sire or "不明"
+    dam_sire_str = dam_sire or "不明"
 
-    dirt_sires = ["ヘニーヒューズ", "シニスターミニスター", "マジェスティックウォリアー", "パイロ", "ドレフォン", "カリフォルニアクローム", "サウスヴィグラス", "エスポワールシチー"]
-    wet_sires = ["キズナ", "オルフェーヴル", "ルーラーシップ", "ドレフォン", "バゴ", "ハービンジャー", "ゴールドシップ", "ヴァンゴッホ"]
-    fast_sires = ["ディープインパクト", "ロードカナロア", "エピファネイア", "ハーツクライ", "シルバーステート", "モーリス", "ロジャーバローズ", "サートゥルナーリア"]
+    dirt_sires = ["ヘニーヒューズ", "シニスターミニスター", "マジェスティックウォリアー", "パイロ", "サウスヴィグラス", "ドレフォン", "エスポワールシチー", "カリフォルニアクローム", "ヴァンゴッホ", "オメガパフューム"]
+    turf_sires = ["ディープインパクト", "ハーツクライ", "ロードカナロア", "エピファネイア", "キズナ", "モーリス", "ドゥラメンテ", "キタサンブラック", "サートゥルナーリア", "ロジャーバローズ"]
 
-    sire_match_dirt = any(s in sire_str or s in dam_sire_str for s in dirt_sires)
-    sire_match_wet = any(s in sire_str or s in dam_sire_str for s in wet_sires)
-    sire_match_fast = any(s in sire_str or s in dam_sire_str for s in fast_sires)
-
-    if is_dirt and sire_match_dirt:
-        blood_score_adj += 5.0
-        blood_comment = f"父{sire_str}×母父{dam_sire_str}。ダート適性の非常に高い血統構成でコース条件にベストマッチ。"
-    elif is_wet_track and sire_match_wet:
-        blood_score_adj += 5.0
-        blood_comment = f"父{sire_str}×母父{dam_sire_str}。道悪・タフな馬場に強い血統背景を持ち、馬場悪化を味方にできる強みあり。"
-    elif track_bias == "超高速馬場（持ち時計重視）" and sire_match_fast:
-        blood_score_adj += 4.0
-        blood_comment = f"父{sire_str}×母父{dam_sire_str}。軽い馬場でのスピード持続力・瞬発力に長けた血統構成。"
-    elif sire_str != "不明" and dam_sire_str != "不明":
-        blood_comment = f"父{sire_str}×母父{dam_sire_str}のバランス型血統構成。コース条件への適応力は十分。"
+    if is_dirt:
+        if any(ds in sire_str or ds in dam_sire_str for ds in dirt_sires):
+            blood_adj += 4.0
+            blood_comment = f"父{sire_str}×母父{dam_sire_str}。ダート適性の非常に高い血統構成でコース条件にベストマッチ。"
+        else:
+            blood_comment = f"父{sire_str}×母父{dam_sire_str}。コース適性は標準的。"
     else:
-        blood_comment = "血統データ参照完了。コース適性に一定の対応力を保持。"
+        if any(ts in sire_str or ts in dam_sire_str for ts in turf_sires):
+            blood_adj += 4.0
+            blood_comment = f"父{sire_str}×母父{dam_sire_str}。芝適性と決め手に優れた王道血統構成。"
+        else:
+            blood_comment = f"父{sire_str}×母父{dam_sire_str}のバランス型血統構成。コース条件への適応力は十分。"
 
-    # 6. 過去5年コース実測統計連動 (枠番＆脚質 複勝率)
-    stat_score_adj = 0.0
-    stat_comment = ""
-    dist_num = parse_distance_num(current_race_dist_str)
-    tt_short = "芝" if "芝" in str(current_track_type) else ("障" if "障" in str(current_track_type) else "ダ")
-    course_key = f"{track_name}・{tt_short}{dist_num}m"
+    if is_wet_track and any(ps in sire_str or ps in dam_sire_str for ps in ["キズナ", "オルフェーヴル", "ルーラーシップ", "ドレフォン", "ゴールドシップ"]):
+        blood_adj += 3.0
+        blood_comment += f" さらに道悪パワー要求度の高い{current_track_condition}馬場は血統的に大歓迎！"
 
-    if stats_index and course_key in stats_index:
-        c_stats = stats_index[course_key]
-        w_pct = c_stats["waku"].get(waku, 12.5)
-        k_pct = c_stats["kyakushitsu"].get(real_style, 25.0)
-
-        # 枠番複勝率のスコア化 (平均12.5%からの乖離補正)
-        w_adj = round((w_pct - 12.5) * 0.8, 1)
-        # 脚質複勝率のスコア化 (基準値からの乖離補正)
-        k_base = {"逃げ": 18.0, "先行": 40.0, "差し": 30.0, "追込": 12.0}.get(real_style, 25.0)
-        k_adj = round((k_pct - k_base) * 0.4, 1)
-
-        stat_score_adj = w_adj + k_adj
-        stat_comment = f" ➔ 【過去5年コース統計】{course_key}の実測複勝率：{waku}枠({w_pct}%)・脚質[{real_style}]({k_pct}%)(補正:{stat_score_adj:+g}pt)。"
-
-    waku_full_comment = waku_comment + tb_comment + stat_comment
-
-    # 7. 距離適性・分析
+    # 6. 距離推移
     dist_flag = "適性距離"
     dist_comment = "前走と同等の距離設定推移。"
+    curr_dist_num = parse_distance_num(current_race_dist_str)
 
     if past_list and len(past_list) > 0:
         last_race = past_list[0]
         last_dist_num = parse_distance_num(last_race.get("距離", ""))
-        if dist_num > 0 and last_dist_num > 0:
-            diff = dist_num - last_dist_num
+        if curr_dist_num > 0 and last_dist_num > 0:
+            diff = curr_dist_num - last_dist_num
             if diff <= -200:
                 dist_flag = f"距離短縮({diff}m)"
                 dist_comment = f"前走{last_dist_num}mから{abs(diff)}mの距離短縮。追走ペースが楽になり末脚爆発の期待大。"
@@ -734,7 +568,7 @@ def analyze_horse_with_index(
                 dist_flag = f"距離延長(+{diff}m)"
                 dist_comment = f"前走{last_dist_num}mから+{diff}mへの距離延長。道中のゆったりした追走が可能。"
 
-    total_score = round(70.0 + bad_score_adj + waku_score_adj + tb_adj + blood_score_adj + stat_score_adj, 1)
+    total_score = round(70.0 + bad_score_adj + waku_score_adj + stat_total_adj + tb_adj + blood_adj, 1)
 
     return {
         "real_style": real_style,
@@ -748,8 +582,8 @@ def analyze_horse_with_index(
     }
 
 
-def render_pace_map_graphic_advanced(processed_horses, race_title, track_type, track_bias):
-    fig, ax = plt.subplots(figsize=(12, 4.8), dpi=150)
+def render_phase_graphic(processed_horses, race_title, track_type, track_bias, phase_type="backstretch"):
+    fig, ax = plt.subplots(figsize=(12, 4.6), dpi=150)
 
     is_dirt = "ダ" in str(track_type) or "ダート" in str(track_type)
     bg_dark = '#381c0d' if is_dirt else '#064e3b'
@@ -763,10 +597,17 @@ def render_pace_map_graphic_advanced(processed_horses, race_title, track_type, t
     ax.axhline(1.5, color=lane_color, linewidth=1, linestyle=':')
     ax.axhline(-1.5, color=lane_color, linewidth=1, linestyle=':')
 
+    if phase_type == "backstretch":
+        phase_label = "PHASE 1: BACKSTRETCH (EARLY - MID)"
+    elif phase_type == "corner":
+        phase_label = "PHASE 2: 3-4 CORNER (MID - TURN)"
+    else:
+        phase_label = "PHASE 3: HOME STRETCH (FINAL SPRINT)"
+
     ax.annotate(
-        "<- FINISH / GOAL",
-        xy=(0.5, 2.3),
-        xytext=(3.5, 2.3),
+        f"<- FINISH / GOAL | {phase_label}",
+        xy=(0.5, 2.2),
+        xytext=(0.8, 2.2),
         arrowprops=dict(facecolor='#fef08a', edgecolor='#fef08a', width=2, headwidth=8),
         fontsize=11,
         fontweight='bold',
@@ -775,10 +616,10 @@ def render_pace_map_graphic_advanced(processed_horses, race_title, track_type, t
     )
 
     zones = [
-        ("NIGE (FRONT)", 0.3, 2.7, '#f87171'),
-        ("SENKO (PACE)", 3.0, 5.7, '#fbbf24'),
-        ("SASHI (MID)", 6.0, 8.7, '#34d399'),
-        ("OIKOMI (BACK)", 9.0, 11.7, '#818cf8'),
+        ("FRONT (NIGE)", 0.3, 2.7, '#f87171'),
+        ("PACE (SENKO)", 3.0, 5.7, '#fbbf24'),
+        ("MID (SASHI)", 6.0, 8.7, '#34d399'),
+        ("BACK (OIKOMI)", 9.0, 11.7, '#818cf8'),
     ]
 
     for ztitle, xmin, xmax, zcolor in zones:
@@ -786,7 +627,6 @@ def render_pace_map_graphic_advanced(processed_horses, race_title, track_type, t
         ax.add_patch(rect)
         ax.text((xmin + xmax)/2, -2.0, ztitle, color=zcolor, fontsize=10, fontweight='bold', ha='center')
 
-    # ★全10バイアスのグラフィック連動ハイライトゾーン★
     hot_rects = []
     if any(k in track_bias for k in ["イン伸び", "内前", "超イン伸び"]):
         hot_rects.append((0.3, 5.7, 0.2, 1.8))
@@ -800,52 +640,109 @@ def render_pace_map_graphic_advanced(processed_horses, race_title, track_type, t
         hot_rects.append((0.3, 2.7, -1.8, 1.8))
     elif any(k in track_bias for k in ["前崩れ", "差し必至"]):
         hot_rects.append((6.0, 11.7, -1.8, 1.8))
-    elif "超高速" in track_bias:
-        hot_rects.append((0.3, 5.7, -1.8, 1.8))
-    elif "タフ" in track_bias:
-        hot_rects.append((6.0, 11.7, -1.8, 1.8))
 
     for xmin, xmax, ymin, ymax in hot_rects:
         hot_box = patches.FancyBboxPatch(
             (xmin, ymin), xmax - xmin, ymax - ymin,
             boxstyle="round,pad=0.1,rounding_size=0.2",
-            facecolor='#fbbf24', edgecolor='#fef08a', linewidth=2.5, alpha=0.35, zorder=2
+            facecolor='#fbbf24', edgecolor='#fef08a', linewidth=2.0, alpha=0.3, zorder=2
         )
         ax.add_patch(hot_box)
 
-    style_x_offsets = {
-        "逃げ": (0.6, 2.4),
-        "先行": (3.3, 5.4),
-        "差し": (6.3, 8.4),
-        "追込": (9.3, 11.4),
+    horses_by_style = {"逃げ": [], "先行": [], "差し": [], "追込": []}
+    for h in processed_horses:
+        style = h.get("real_style", "先行")
+        if style in horses_by_style:
+            horses_by_style[style].append(h)
+        else:
+            horses_by_style["先行"].append(h)
+
+    style_bounds = {
+        "逃げ": (0.4, 2.6),
+        "先行": (3.1, 5.6),
+        "差し": (6.1, 8.6),
+        "追込": (9.1, 11.6),
     }
 
-    style_counts = {"逃げ": 0, "先行": 0, "差し": 0, "追込": 0}
+    if phase_type == "backstretch":
+        for style, bounds in style_bounds.items():
+            h_list = horses_by_style[style]
+            if not h_list: continue
+            xmin, xmax = bounds
+            n = len(h_list)
+            cols = 2 if n <= 6 else 3
+            rows = (n + cols - 1) // cols
+            dx = (xmax - xmin) / (cols + 1)
+            dy = 3.2 / (rows + 1)
+            r = 0.35 if n <= 6 else 0.28
+            font_sz = 11 if n <= 6 else 9
 
-    for horse in processed_horses:
-        style = horse["real_style"]
-        waku = horse["waku"]
-        num = horse["num"]
+            for i, horse in enumerate(h_list):
+                c_idx = i % cols
+                r_idx = i // cols
+                x_pos = xmin + (c_idx + 1) * dx
+                y_pos = 1.6 - (r_idx + 1) * dy
 
-        bg_col, text_col = WAKU_COLOR_MAP.get(waku, ("#ffffff", "#000000"))
-        xmin, xmax = style_x_offsets.get(style, (3.3, 5.4))
-        cnt = style_counts[style]
+                bg_col, text_col = WAKU_COLOR_MAP.get(horse["waku"], ("#ffffff", "#000000"))
+                circle = patches.Circle((x_pos, y_pos), r, facecolor=bg_col, edgecolor='#f8fafc', linewidth=1.8, zorder=4)
+                ax.add_patch(circle)
+                ax.text(x_pos, y_pos, str(horse["num"]), color=text_col, fontsize=font_sz, fontweight='bold', ha='center', va='center', zorder=5)
 
-        x_pos = xmin + (cnt % 2) * 1.1
-        y_pos = 1.2 - (cnt // 2) * 0.9 if cnt < 4 else -1.2 + (cnt % 2) * 0.6
-        style_counts[style] += 1
+    elif phase_type == "corner":
+        for style, bounds in style_bounds.items():
+            h_list = horses_by_style[style]
+            if not h_list: continue
+            xmin, xmax = bounds
+            n = len(h_list)
+            cols = 2 if n <= 6 else 3
+            rows = (n + cols - 1) // cols
+            dx = (xmax - xmin) / (cols + 1)
+            dy = 3.2 / (rows + 1)
+            r = 0.32 if n <= 6 else 0.28
+            font_sz = 10 if n <= 6 else 9
 
-        circle = patches.Circle(
-            (x_pos, y_pos), 0.38,
-            facecolor=bg_col, edgecolor='#f8fafc', linewidth=1.8, zorder=4
-        )
-        ax.add_patch(circle)
+            for i, horse in enumerate(h_list):
+                c_idx = i % cols
+                r_idx = i // cols
+                x_pos = xmin + (c_idx + 1) * dx
+                y_pos = 1.6 - (r_idx + 1) * dy
 
-        ax.text(
-            x_pos, y_pos, str(num),
-            color=text_col, fontsize=12, fontweight='bold',
-            ha='center', va='center', zorder=5
-        )
+                if style in ["差し", "追込"] and any(b in track_bias for b in ["外差し", "外伸び", "前崩れ", "大外一気"]):
+                    x_pos -= 1.0
+                    y_pos = -1.2 + (i % 3) * 0.8
+                elif style in ["逃げ", "先行"] and any(b in track_bias for b in ["内伸び", "超イン伸び", "逃げ天国"]):
+                    x_pos -= 0.3
+                    y_pos = 1.2 - (i % 3) * 0.6
+
+                bg_col, text_col = WAKU_COLOR_MAP.get(horse["waku"], ("#ffffff", "#000000"))
+                circle = patches.Circle((x_pos, y_pos), r, facecolor=bg_col, edgecolor='#f8fafc', linewidth=1.8, zorder=4)
+                ax.add_patch(circle)
+                ax.text(x_pos, y_pos, str(horse["num"]), color=text_col, fontsize=font_sz, fontweight='bold', ha='center', va='center', zorder=5)
+
+    else:
+        sorted_horses = sorted(processed_horses, key=lambda x: x.get("total_score", 70.0), reverse=True)
+        r = 0.32
+        font_sz = 10
+
+        for rank_idx, horse in enumerate(sorted_horses, start=1):
+            if rank_idx == 1: x_pos, y_pos = 0.8, 0.5
+            elif rank_idx == 2: x_pos, y_pos = 1.6, -0.5
+            elif rank_idx == 3: x_pos, y_pos = 2.4, 1.2
+            elif rank_idx <= 6:
+                x_pos = 3.2 + (rank_idx - 4) * 1.0
+                y_pos = 1.0 - (rank_idx % 3) * 0.9
+            elif rank_idx <= 12:
+                x_pos = 6.2 + ((rank_idx - 7) // 2) * 1.1
+                y_pos = 1.2 - (rank_idx % 3) * 1.0
+            else:
+                x_pos = 9.5 + ((rank_idx - 13) // 2) * 1.1
+                y_pos = 1.0 - (rank_idx % 3) * 1.0
+
+            x_pos = min(11.4, max(0.6, x_pos))
+            bg_col, text_col = WAKU_COLOR_MAP.get(horse["waku"], ("#ffffff", "#000000"))
+            circle = patches.Circle((x_pos, y_pos), r, facecolor=bg_col, edgecolor='#f8fafc', linewidth=1.8, zorder=4)
+            ax.add_patch(circle)
+            ax.text(x_pos, y_pos, str(horse["num"]), color=text_col, fontsize=font_sz, fontweight='bold', ha='center', va='center', zorder=5)
 
     ax.set_xlim(-0.2, 12.2)
     ax.set_ylim(-2.5, 2.7)
@@ -870,7 +767,7 @@ st.markdown(
 with st.spinner("データを読み込んでいます..."):
     date_races_map = scan_and_load_all_csvs()
     past_index = load_past_races_index()
-    stats_index = load_stats_index()
+    course_stats = load_course_stats_index()
 
 available_dates = sorted(list(date_races_map.keys()))
 
@@ -914,6 +811,7 @@ current_race_horses = selected_race_obj["horses"]
 current_race_cond_name = selected_race_obj.get("cond", "一般特別")
 current_race_dist_str = selected_race_obj.get("dist", "1800")
 current_track_type = selected_race_obj.get("track_type", "芝")
+current_track_location = selected_race_obj.get("track", "東京")
 
 st.markdown(
     f"""
@@ -975,8 +873,8 @@ for h_data in current_race_horses:
     horse_name = h_data.get("馬名", "不明馬")
     waku = h_data["枠番"]
     umaban = h_data["馬番"]
-    sire_name = h_data.get("父", "不明")
-    dam_sire_name = h_data.get("母父", "不明")
+    sire = h_data.get("父", "")
+    dam_sire = h_data.get("母父", "")
 
     eval_res = analyze_horse_with_index(
         horse_name,
@@ -991,10 +889,10 @@ for h_data in current_race_horses:
         weather,
         track_bias,
         expected_pace,
-        sire_name=sire_name,
-        dam_sire_name=dam_sire_name,
-        stats_index=stats_index,
-        track_name=selected_race_obj.get("track", ""),
+        current_track_location,
+        course_stats,
+        sire,
+        dam_sire,
     )
 
     processed_horses.append({
@@ -1002,8 +900,8 @@ for h_data in current_race_horses:
         "num": umaban,
         "name": horse_name,
         "jockey": h_data.get("騎手", "未定"),
-        "sire": sire_name,
-        "dam_sire": dam_sire_name,
+        "sire": sire,
+        "dam_sire": dam_sire,
         "total_score": eval_res["total_score"],
         "real_style": eval_res["real_style"],
         "bad_flag": eval_res["bad_flag"],
@@ -1030,7 +928,7 @@ renka = ranked_horses[3:6] if len(ranked_horses) >= 6 else ranked_horses[3:]
 
 tab_rank, tab_pace, tab_tickets = st.tabs([
     "🏆 AI分析スコア",
-    "🏇 展開・隊列グラフィック",
+    "🏇 展開・推定隊列グラフィック",
     "🎯 AI推奨馬券",
 ])
 
@@ -1054,15 +952,17 @@ with tab_rank:
         elif "道悪不安" in horse["bad_flag"] or "懸念" in horse["bad_flag"]:
             tags_html += '<span style="background-color:#dc2626; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">道悪割り引き</span>'
 
+        blood_info = f"父: {horse['sire']} ｜ 母父: {horse['dam_sire']}" if horse['sire'] else "血統データ準備中"
+
         card_code = f"""
         <div class="horse-card" style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px;">
             <div style="flex: 1 1 200px; min-width: 180px;">
                 <h4 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 800; color: #1e1b4b;">{crown} {horse['name']}</h4>
-                <div style="font-size: 12px; color: #4338ca; font-weight: 700; margin-bottom: 4px;">
-                    🧬 父: {horse['sire']} ｜ 母父: {horse['dam_sire']}
-                </div>
-                <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">
+                <div style="font-size: 12px; color: #64748b; margin-bottom: 2px;">
                     枠{horse['waku']} {horse['num']}番 ｜ 騎手: {horse['jockey']}
+                </div>
+                <div style="font-size: 11px; color: #475569; margin-bottom: 4px;">
+                    🧬 {blood_info}
                 </div>
                 <div style="font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px;">
                     想定脚質: <b>{horse['real_style']}</b>
@@ -1086,15 +986,35 @@ with tab_rank:
         """
         cards_html_list.append(card_code)
 
-    st.markdown("\\n".join(cards_html_list), unsafe_allow_html=True)
+    st.markdown("\n".join(cards_html_list), unsafe_allow_html=True)
 
 
 with tab_pace:
-    st.subheader(f"🏇 【{clean_race_title}】 展開・推定隊列グラフィック")
+    st.subheader(f"🏇 【{clean_race_title}】 展開・推定隊列グラフィック (3フェーズ詳細分析)")
 
-    fig = render_pace_map_graphic_advanced(processed_horses, clean_race_title, current_track_type, track_bias)
-    st.pyplot(fig, use_container_width=True)
-    plt.close(fig)
+    sub_tab1, sub_tab2, sub_tab3 = st.tabs([
+        "📍 ① 向こう正面 (スタート〜中盤)",
+        "🌀 ② 3・4コーナー (勝負所・進出)",
+        "🏁 ③ 最終直線 (ゴール前・決め手)"
+    ])
+
+    with sub_tab1:
+        st.markdown("##### 📍 向こう正面（スタート直後〜中盤ポジション）")
+        fig1 = render_phase_graphic(processed_horses, clean_race_title, current_track_type, track_bias, "backstretch")
+        st.pyplot(fig1, width='stretch')
+        plt.close(fig1)
+
+    with sub_tab2:
+        st.markdown("##### 🌀 3・4コーナー（勝負所でのポジション押し上げ・外回し想定）")
+        fig2 = render_phase_graphic(processed_horses, clean_race_title, current_track_type, track_bias, "corner")
+        st.pyplot(fig2, width='stretch')
+        plt.close(fig2)
+
+    with sub_tab3:
+        st.markdown("##### 🏁 最終直線（AIスコア＆バイアス順 予想ゴール前位置取り）")
+        fig3 = render_phase_graphic(processed_horses, clean_race_title, current_track_type, track_bias, "straight")
+        st.pyplot(fig3, width='stretch')
+        plt.close(fig3)
 
     st.markdown("##### 📋 出走馬 枠色連動一覧")
 
@@ -1124,14 +1044,14 @@ with tab_tickets:
     if honmei and taikou:
         col_mark1, col_mark2, col_mark3, col_mark4 = st.columns(4)
         with col_mark1:
-            st.info(f"**◎ 本命**: {honmei['num']}番 **{honmei['name']}**\\n\\nスコア: {honmei['total_score']} pt")
+            st.info(f"**◎ 本命**: {honmei['num']}番 **{honmei['name']}**\n\nスコア: {honmei['total_score']} pt")
         with col_mark2:
-            st.success(f"**◯ 対抗**: {taikou['num']}番 **{taikou['name']}**\\n\\nスコア: {taikou['total_score']} pt")
+            st.success(f"**◯ 対抗**: {taikou['num']}番 **{taikou['name']}**\n\nスコア: {taikou['total_score']} pt")
         with col_mark3:
-            st.warning(f"**▲ 単穴**: {tanana['num']}番 **{tanana['name']}**\\n\\nスコア: {tanana['total_score']} pt" if tanana else "なし")
+            st.warning(f"**▲ 単穴**: {tanana['num']}番 **{tanana['name']}**\n\nスコア: {tanana['total_score']} pt" if tanana else "なし")
         with col_mark4:
             renka_nums = [str(h['num']) for h in renka]
-            st.error(f"**△ 紐・穴**: {', '.join([f'{n}番' for n in renka_nums])}\\n\\n展開好転予想馬")
+            st.error(f"**△ 紐・穴**: {', '.join([f'{n}番' for n in renka_nums])}\n\n展開好転予想馬")
 
         st.divider()
         st.markdown("##### 🎰 推奨馬券フォーメーション (全5種類)")
