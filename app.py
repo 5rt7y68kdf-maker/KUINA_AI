@@ -18,10 +18,6 @@ st.set_page_config(
     layout="wide",
 )
 
-st.markdown("""<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2908081357791263" crossorigin="anonymous"></script>
-<script>if (!document.querySelector('meta[name="google-adsense-account"]')) { var m = document.createElement('meta'); m.name = "google-adsense-account"; m.content = "ca-pub-2908081357791263"; document.getElementsByTagName('head')[0].appendChild(m); }</script>""", unsafe_allow_html=True)
-
-
 st.markdown(
     """
     <style>
@@ -136,6 +132,39 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
+
+# ==============================================================================
+# 0. Google AdSense メタタグ & 自動広告スクリプト (headタグ動的挿入)
+# ==============================================================================
+adsense_meta_code = """
+<script>
+    if (!document.querySelector('meta[name="google-adsense-account"]')) {
+        var m = document.createElement('meta');
+        m.name = 'google-adsense-account';
+        m.content = 'ca-pub-2908081357791263';
+        document.head.appendChild(m);
+    }
+    if (!document.querySelector('script[src*="adsbygoogle.js"]')) {
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2908081357791263';
+        s.crossOrigin = 'anonymous';
+        document.head.appendChild(s);
+    }
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2908081357791263" crossorigin="anonymous"></script>
+"""
+st.components.v1.html(adsense_meta_code, height=0)
+
+def render_ad_component(slot_name="top"):
+    ad_code = f"""
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2908081357791263" crossorigin="anonymous"></script>
+    """
+    st.components.v1.html(ad_code, height=0)
+
+
+
 
 # ==============================================================================
 # 2. ユーティリティ ＆ パース関数
@@ -1079,3 +1108,35 @@ with tab_tickets:
                 """,
                 unsafe_allow_html=True
             )
+
+
+
+# ==============================================================================
+# 7. フッター：プライバシーポリシー・免責事項・運営者情報
+# ==============================================================================
+st.divider()
+with st.expander("🔒 プライバシーポリシー / 免責事項 / 運営者情報・お問い合わせ"):
+    st.markdown("""
+    #### ⚖️ 免責事項
+    * 本アプリ（KUINA AI）で提供されるデータ、分析スコア、推奨馬券フォーメーションは、過去の競馬レースデータに基づく独自の統計シミュレーション結果です。
+    * 将来的・実際のレース結果、的中、利益を保証するものではありません。
+    * 馬券の購入および投資に関する最終決定は、ご自身の判断と責任において行っていただきますようお願い申し上げます。万一損害が発生した場合でも、当サイトおよび管理者は一切の責任を負いかねます。
+
+    ---
+
+    #### 🛡️ プライバシーポリシー
+    * **広告の配信について**
+      当サイトでは、第三者配信事業者（Google AdSense等）による広告サービスを利用しています。広告事業者は、ユーザーの興味に応じた商品やサービスの広告を表示するため、当サイトや他サイトへのアクセスに関する情報（Cookie / クッキー）を使用することがあります（氏名、住所、メール アドレス、電話番号は含まれません）。
+    * **Cookie（クッキー）の削除・設定**
+      ユーザーはGoogleの広告設定等から、パーソナライズド広告に使われるCookieを無効にできます。
+    * **アクセス解析ツールについて**
+      当サイトでは、サービス向上・トラフィック分析のためにGoogle Analytics等の解析ツールを利用する場合があります。収集されるデータは匿名であり、個人を特定するものではありません。
+
+    ---
+
+    #### 📧 運営者情報 & お問い合わせ窓口
+    * **サイト名**: KUINA AI | Racing Intelligence System
+    * **運営管理**: KUINA AI 開発プロジェクト
+    * **お問い合わせメールアドレス**: [ryuya0611@gmail.com](mailto:ryuya0611@gmail.com)
+    * ※ご不具合の報告、ご意見・ご感想、各種お問い合わせは上記メールアドレスまでお気軽にご連絡ください。
+    """, unsafe_allow_html=True)
