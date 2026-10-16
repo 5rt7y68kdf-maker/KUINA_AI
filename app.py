@@ -133,39 +133,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
-# ==============================================================================
-# 0. Google AdSense メタタグ & 自動広告スクリプト (headタグ動的挿入)
-# ==============================================================================
-adsense_meta_code = """
-<script>
-    if (!document.querySelector('meta[name="google-adsense-account"]')) {
-        var m = document.createElement('meta');
-        m.name = 'google-adsense-account';
-        m.content = 'ca-pub-2908081357791263';
-        document.head.appendChild(m);
-    }
-    if (!document.querySelector('script[src*="adsbygoogle.js"]')) {
-        var s = document.createElement('script');
-        s.async = true;
-        s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2908081357791263';
-        s.crossOrigin = 'anonymous';
-        document.head.appendChild(s);
-    }
-</script>
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2908081357791263" crossorigin="anonymous"></script>
-"""
-st.components.v1.html(adsense_meta_code, height=0)
-
-def render_ad_component(slot_name="top"):
-    ad_code = f"""
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2908081357791263" crossorigin="anonymous"></script>
-    """
-    st.components.v1.html(ad_code, height=0)
-
-
-
-
 # ==============================================================================
 # 2. ユーティリティ ＆ パース関数
 # ==============================================================================
@@ -509,115 +476,110 @@ def analyze_horse_with_index(
     if track_bias == "超イン伸び・最内ラチ有利":
         if waku in [1, 2] and real_style in ["逃げ", "先行"]:
             tb_adj = 12.0
-            tb_comment = f" ➔ 【バイアス絶好】{waku}枠の最内ラチ沿い×前行き脚質。最内を通れる最高の展開です。"
+            tb_comment = f"【バイアス絶好】{waku}枠の最内ラチ沿い×前行き脚質。最内を通れる最高の展開です。"
         elif waku in [1, 2]:
             tb_adj = 6.0
-            tb_comment = f" ➔ 【バイアス良好】{waku}枠の最内枠。内目のグリーンベルトを通れる好位置。"
+            tb_comment = f"【バイアス良好】{waku}枠の最内枠。内目のグリーンベルトを通れる好位置。"
         elif waku in [3, 4] and real_style in ["逃げ", "先行"]:
             tb_adj = 4.0
-            tb_comment = f" ➔ 【バイアスやや良好】{waku}枠からすんなり内に入れて先行できれば強みを発揮。"
+            tb_comment = f"【バイアスやや良好】{waku}枠からすんなり内に入れて先行できれば強みを発揮。"
         elif waku in [7, 8]:
             tb_adj = -8.0
-            tb_comment = f" ➔ 【バイアス大逆風】{waku}枠の外枠によりインコースに入れず大幅不利。"
+            tb_comment = f"【バイアス大逆風】{waku}枠の外枠によりインコースに入れず大幅不利。"
 
     elif track_bias in ["内伸び・内前有利", "内前有利"]:
         if waku <= 4 and real_style in ["逃げ", "先行"]:
             tb_adj = 10.0
-            tb_comment = f" ➔ 【バイアス絶好】{waku}枠×内前有利。内ラチ沿いを先手奪取できる絶好配置。"
+            tb_comment = f"【バイアス絶好】{waku}枠×内前有利。内ラチ沿いを先手奪取できる絶好配置。"
         elif waku <= 4 and real_style == "差し":
             tb_adj = 4.0
-            tb_comment = f" ➔ 【バイアス良好】内枠からロスなく差してこれる有利ポジション。"
+            tb_comment = f"【バイアス良好】内枠からロスなく差してこれる有利ポジション。"
         elif waku >= 5 and real_style == "追込":
             tb_adj = -6.0
-            tb_comment = f" ➔ 【バイアス逆風】外枠×後方追込。内前有利な馬場に泣く厳しい展開。"
+            tb_comment = f"【バイアス逆風】外枠×後方追込。内前有利な馬場に泣く厳しい展開。"
         elif waku >= 7:
             tb_adj = -4.0
-            tb_comment = f" ➔ 【バイアスやや逆風】外枠につきコーナーでの内入れ苦戦。"
+            tb_comment = f"【バイアスやや逆風】外枠につきコーナーでの内入れ苦戦。"
 
     elif track_bias in ["外伸び・外差し有利", "外差し有利"]:
-        if waku >= 5 and real_style in ["差し", "追込"]:
+        if waku >= 6 and real_style in ["差し", "追込"]:
             tb_adj = 10.0
-            tb_comment = f" ➔ 【バイアス絶好】{waku}枠×外差し脚質。荒れた内を避けて一気に突き抜ける絶好機会。"
-        elif waku >= 5 and real_style == "先行":
-            tb_adj = 4.0
-            tb_comment = f" ➔ 【バイアス良好】外から被せるように前目をつけて馬場の良い部分を通過可能。"
+            tb_comment = f"【バイアス絶好】{waku}枠×外差し脚質。荒れた内を避けて一気に突き抜ける絶好機会。"
+        elif waku >= 5:
+            tb_adj = 5.0
+            tb_comment = f"【バイアス良好】外から被せるように前目をつけて馬場の良い部分を通過可能。"
         elif waku <= 2 and real_style in ["逃げ", "先行"]:
             tb_adj = -6.0
-            tb_comment = f" ➔ 【バイアス逆風】最内枠×逃げ・先行。痛んだ内目を通らされる懸念。"
+            tb_comment = f"【バイアス逆風】最内枠×逃げ・先行。痛んだ内目を通らされる懸念。"
 
     elif track_bias == "外前有利":
-        if waku >= 5 and real_style in ["逃げ", "先行"]:
+        if waku >= 6 and real_style in ["逃げ", "先行"]:
             tb_adj = 10.0
-            tb_comment = f" ➔ 【バイアス絶好】{waku}枠×外前展開。馬場のきれいな外目から気持ちよく先行可能。"
-        elif waku >= 5 and real_style == "差し":
+            tb_comment = f"【バイアス絶好】{waku}枠×外前展開。馬場のきれいな外目から気持ちよく先行可能。"
+        elif waku >= 5:
             tb_adj = 4.0
-            tb_comment = f" ➔ 【バイアス良好】外目を通れるポジショニングでアドバンテージ。"
-        elif waku <= 2:
-            tb_adj = -5.0
-            tb_comment = f" ➔ 【バイアス逆風】内枠のため荒れた内ラチ沿いに閉じ込められる懸念。"
+            tb_comment = f"【バイアス良好】外目を通れるポジショニングでアドバンテージ。"
+        elif waku <= 3:
+            tb_adj = -4.0
+            tb_comment = f"【バイアス逆風】内枠のため荒れた内ラチ沿いに閉じ込められる懸念。"
 
     elif track_bias == "大外一気・外全振り":
-        if waku in [7, 8] and real_style in ["差し", "追込"]:
+        if waku >= 7 and real_style in ["差し", "追込"]:
             tb_adj = 12.0
-            tb_comment = f" ➔ 【バイアス絶好】{waku}枠×外全振り馬場。馬場のいい大外から一気に突き抜ける大チャンス。"
-        elif waku in [5, 6] and real_style in ["差し", "追込"]:
-            tb_adj = 8.0
-            tb_comment = f" ➔ 【バイアス良好】外目進出で外全振りバイアスの恩恵享受。"
+            tb_comment = f"【バイアス絶好】{waku}枠×外全振り馬場。馬場のいい大外から一気に突き抜ける大チャンス。"
+        elif waku >= 5:
+            tb_adj = 6.0
+            tb_comment = f"【バイアス良好】外目進出で外全振りバイアスの恩恵享受。"
         elif waku <= 2 and real_style in ["逃げ", "先行"]:
-            tb_adj = -10.0
-            tb_comment = f" ➔ 【バイアス大逆風】最内枠×前行き。痛んだ内目通過で完全目標にされる展開。"
+            tb_adj = -8.0
+            tb_comment = f"【バイアス大逆風】最内枠×前行き。痛んだ内目通過で完全目標にされる展開。"
 
     elif track_bias in ["超前残り・逃げ天国", "前残り強"]:
         if real_style == "逃げ":
             tb_adj = 12.0
-            tb_comment = " ➔ 【バイアス絶好】逃げ天国馬場につき、マイペース逃げからの押し切り濃厚。"
+            tb_comment = "【バイアス絶好】逃げ天国馬場につき、マイペース逃げからの押し切り濃厚。"
         elif real_style == "先行":
             tb_adj = 7.0
-            tb_comment = " ➔ 【バイアス良好】絶好の好位前目で粘り込みを図れる展開。"
+            tb_comment = "【バイアス良好】絶好の好位前目で粘り込みを図れる展開。"
         elif real_style == "追込":
-            tb_adj = -10.0
-            tb_comment = " ➔ 【バイアス大逆風】後方追込には絶望的な超前残りバイアス。"
+            tb_adj = -8.0
+            tb_comment = "【バイアス大逆風】後方追込には絶望的な超前残りバイアス。"
         elif real_style == "差し":
-            tb_adj = -5.0
-            tb_comment = " ➔ 【バイアスやや逆風】前が止まらないため差し届かずのリスク。"
+            tb_adj = -4.0
+            tb_comment = "【バイアスやや逆風】前が止まらないため差し届かずのリスク。"
 
     elif track_bias in ["前崩れ・差し必至"]:
-        if real_style == "追込":
-            tb_adj = 12.0
-            tb_comment = " ➔ 【バイアス絶好】前崩れ確実の展開につき、直線大外一気での末脚爆発期待。"
-        elif real_style == "差し":
-            tb_adj = 8.0
-            tb_comment = " ➔ 【バイアス良好】好位差し展開でバテた先行馬を一網打尽。"
-        elif real_style == "逃げ":
-            tb_adj = -10.0
-            tb_comment = " ➔ 【バイアス大逆風】ハイペース巻き込まれで直線完全失速のリスク。"
+        if real_style in ["差し", "追込"]:
+            tb_adj = 10.0
+            tb_comment = "【バイアス絶好】前崩れ確実の展開につき、直線大外一気での末脚爆発期待。"
         elif real_style == "先行":
-            tb_adj = -5.0
-            tb_comment = " ➔ 【バイアスやや逆風】早い仕掛けで脚が上がる危険性。"
+            tb_adj = 4.0
+            tb_comment = "【バイアス良好】好位差し展開でバテた先行馬を一網打尽。"
+        elif real_style == "逃げ":
+            tb_adj = -8.0
+            tb_comment = "【バイアス大逆風】ハイペース巻き込まれで直線完全失速のリスク。"
 
     elif track_bias == "超高速馬場（持ち時計重視）":
         if real_style in ["逃げ", "先行"]:
-            tb_adj = 8.0
-            tb_comment = " ➔ 【バイアス良好】超高速馬場×スピード持続力。前々から止まらないレース質に適合。"
-        elif waku <= 4:
-            tb_adj = 4.0
-            tb_comment = " ➔ 【バイアスやや良好】高速馬場のインコースロスなし追走メリット。"
+            tb_adj = 6.0
+            tb_comment = "【バイアス良好】超高速馬場×スピード持続力。前々から止まらないレース質に適合。"
+        elif waku <= 3:
+            tb_adj = 3.0
+            tb_comment = "【バイアスやや良好】高速馬場のインコースロスなし追走メリット。"
         elif real_style == "追込":
-            tb_adj = -5.0
-            tb_comment = " ➔ 【バイアス逆風】高速時計決着で後方からの追い出し遅れ懸念。"
+            tb_adj = -4.0
+            tb_comment = "【バイアス逆風】高速時計決着で後方からの追い出し遅れ懸念。"
 
     elif track_bias == "タフ・スタミナ消耗馬場":
-        if real_style in ["差し", "追込"]:
-            tb_adj = 8.0
-            tb_comment = " ➔ 【バイアス良好】スタミナ消耗戦につき、底力と末脚を発揮できる展開。"
-        elif bad_flag in ["道悪◎(好実績)", "道悪◯"]:
+        if bad_flag in ["道悪◎(好実績)", "道悪◯"]:
             tb_adj = 6.0
-            tb_comment = " ➔ 【バイアス良好】タフな馬場での過去実績が実を結ぶ消耗戦歓迎タイプ。"
+            tb_comment = "【バイアス良好】タフな馬場での過去実績が実を結ぶ消耗戦歓迎タイプ。"
         elif real_style == "逃げ":
             tb_adj = -6.0
-            tb_comment = " ➔ 【バイアス逆風】タフ馬場での逃げは直線最後で目標にされてバテるリスク。"
+            tb_comment = "【バイアス逆風】タフ馬場での逃げは直線最後で目標にされてバテるリスク。"
 
-    waku_full_comment = waku_comment + tb_comment
+    if not tb_comment:
+        tb_comment = "【フラットバイアス】コース・馬場による極端な展開の偏りはなく、フラットな適性勝負。"
 
     # 5. 距離適性・分析
     dist_flag = "適性距離"
@@ -642,7 +604,9 @@ def analyze_horse_with_index(
         "real_style": real_style,
         "bad_flag": bad_flag,
         "bad_comment": bad_comment,
-        "waku_comment": waku_full_comment,
+        "waku_comment": waku_comment,
+        "tb_comment": tb_comment,
+        "tb_adj": tb_adj,
         "dist_flag": dist_flag,
         "dist_comment": dist_comment,
         "total_score": total_score,
@@ -865,6 +829,30 @@ with col_env4:
         horizontal=True,
     )
 
+# 🤖 AIトラックバイアス解析ステータス（AIバイアス欄の自動ハイライト表示）
+bias_descriptions = {
+    "フラット": "特定枠・脚質への極端な偏りはなし。馬の自力・展開通りの平穏なレース質を想定。",
+    "超イン伸び・最内ラチ有利": "1〜2枠および逃げ・先行馬に最高+12ptの強力なバイアス補正が発動中。",
+    "内伸び・内前有利": "内枠(1〜4枠)および先行馬に最大+10ptの有利補正。外追込馬は減点対象。",
+    "外伸び・外差し有利": "外枠・差し馬に最大+10ptの有利補正。荒れた内を通る逃げ馬は割引評価。",
+    "外前有利": "外枠かつ好位先行馬に+10ptの有利補正。良好な外馬場から前残りを狙う配置。",
+    "大外一気・外全振り": "外枠かつ追込馬に最大+12ptの特大加点。内前馬は痛んだ馬場で厳しい評価。",
+    "超前残り・逃げ天国": "逃げ・先行馬に最大+12ptの決定的な前残り補正。追込馬は絶望的減点。",
+    "前崩れ・差し必至": "差し・追込馬に最大+10ptの展開加点。ハイペースで先行力消耗リスク。",
+    "超高速馬場（持ち時計重視）": "スピード持続力・内ロスなし追走馬に加点。超高速時計対応力を評価。",
+    "タフ・スタミナ消耗馬場": "道悪・スタミナ自慢のタフネス馬に最大+8pt加点。早め失速リスク馬を割引。"
+}
+
+st.markdown(
+    f"""
+    <div style="background-color:#eef2ff; border:1px solid #c7d2fe; border-left:5px solid #4f46e5; padding:10px 16px; border-radius:10px; margin-top:8px; margin-bottom:12px; font-size:13px; color:#1e1b4b;">
+        <b>🤖 AIトラックバイアス解析ステータス：【{track_bias}】</b><br/>
+        <span style="color:#475569; font-size:12px;">{bias_descriptions.get(track_bias, "")}</span>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
 st.divider()
 
 # --- インデックス参照型 全馬スコア演算 ---
@@ -901,6 +889,8 @@ for h_data in current_race_horses:
         "bad_flag": eval_res["bad_flag"],
         "bad_comment": eval_res["bad_comment"],
         "waku_comment": eval_res["waku_comment"],
+        "tb_comment": eval_res["tb_comment"],
+        "tb_adj": eval_res["tb_adj"],
         "dist_flag": eval_res["dist_flag"],
         "dist_comment": eval_res["dist_comment"],
     })
@@ -945,6 +935,8 @@ with tab_rank:
         elif "道悪不安" in horse["bad_flag"] or "懸念" in horse["bad_flag"]:
             tags_html += '<span style="background-color:#dc2626; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">道悪割り引き</span>'
 
+        tb_color = "#4f46e5" if horse["tb_adj"] > 0 else ("#dc2626" if horse["tb_adj"] < 0 else "#64748b")
+
         card_code = f"""
         <div class="horse-card" style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px;">
             <div style="flex: 1 1 200px; min-width: 180px;">
@@ -960,6 +952,8 @@ with tab_rank:
             <div style="flex: 2 1 300px; min-width: 250px;">
                 <div class="analysis-label">🚩 枠順・展開配置評価</div>
                 <div class="analysis-text">{horse["waku_comment"]}</div>
+                <div class="analysis-label">🤖 AIトラックバイアス適合判定</div>
+                <div class="analysis-text" style="color: {tb_color}; font-weight: 700;">{horse["tb_comment"]}</div>
                 <div class="analysis-label">🌧️ 馬場適性・過去実績評価</div>
                 <div class="analysis-text">{horse["bad_comment"]}</div>
                 <div class="analysis-label">📏 距離推移・展開分析</div>
@@ -1108,35 +1102,3 @@ with tab_tickets:
                 """,
                 unsafe_allow_html=True
             )
-
-
-
-# ==============================================================================
-# 7. フッター：プライバシーポリシー・免責事項・運営者情報
-# ==============================================================================
-st.divider()
-with st.expander("🔒 プライバシーポリシー / 免責事項 / 運営者情報・お問い合わせ"):
-    st.markdown("""
-    #### ⚖️ 免責事項
-    * 本アプリ（KUINA AI）で提供されるデータ、分析スコア、推奨馬券フォーメーションは、過去の競馬レースデータに基づく独自の統計シミュレーション結果です。
-    * 将来的・実際のレース結果、的中、利益を保証するものではありません。
-    * 馬券の購入および投資に関する最終決定は、ご自身の判断と責任において行っていただきますようお願い申し上げます。万一損害が発生した場合でも、当サイトおよび管理者は一切の責任を負いかねます。
-
-    ---
-
-    #### 🛡️ プライバシーポリシー
-    * **広告の配信について**
-      当サイトでは、第三者配信事業者（Google AdSense等）による広告サービスを利用しています。広告事業者は、ユーザーの興味に応じた商品やサービスの広告を表示するため、当サイトや他サイトへのアクセスに関する情報（Cookie / クッキー）を使用することがあります（氏名、住所、メール アドレス、電話番号は含まれません）。
-    * **Cookie（クッキー）の削除・設定**
-      ユーザーはGoogleの広告設定等から、パーソナライズド広告に使われるCookieを無効にできます。
-    * **アクセス解析ツールについて**
-      当サイトでは、サービス向上・トラフィック分析のためにGoogle Analytics等の解析ツールを利用する場合があります。収集されるデータは匿名であり、個人を特定するものではありません。
-
-    ---
-
-    #### 📧 運営者情報 & お問い合わせ窓口
-    * **サイト名**: KUINA AI | Racing Intelligence System
-    * **運営管理**: KUINA AI 開発プロジェクト
-    * **お問い合わせメールアドレス**: [ryuya0611@gmail.com](mailto:ryuya0611@gmail.com)
-    * ※ご不具合の報告、ご意見・ご感想、各種お問い合わせは上記メールアドレスまでお気軽にご連絡ください。
-    """, unsafe_allow_html=True)
