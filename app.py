@@ -1,10 +1,3 @@
-
-def render_ad_component(slot_name="top"):
-    ad_code = """
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2908081357791263" crossorigin="anonymous"></script>
-    """
-    st.components.v1.html(ad_code, height=0)
-
 import os
 import glob
 import re
@@ -24,6 +17,10 @@ st.set_page_config(
     page_icon="💎",
     layout="wide",
 )
+
+st.markdown("""<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2908081357791263" crossorigin="anonymous"></script>
+<script>if (!document.querySelector('meta[name="google-adsense-account"]')) { var m = document.createElement('meta'); m.name = "google-adsense-account"; m.content = "ca-pub-2908081357791263"; document.getElementsByTagName('head')[0].appendChild(m); }</script>""", unsafe_allow_html=True)
+
 
 st.markdown(
     """
@@ -1082,17 +1079,3 @@ with tab_tickets:
                 """,
                 unsafe_allow_html=True
             )
-
-
-# --- Footer ---
-st.divider()
-render_ad_component("bottom")
-
-with st.expander("📋 プライバシーポリシー・免責事項"):
-    st.markdown("""
-    ### プライバシーポリシー・免責事項
-
-    1. **免責事項**: 当サービス「KUINA AI」で提供するAI分析スコア、展開予想、推奨馬券等は過去のデータに基づく推定であり、的中結果を保証するものではありません。馬券購入はご自身の判断と自己責任において行ってください。
-    2. **広告配信**: 当サービスでは第三者配信の広告サービスを利用しており、ユーザーの興味に応じた広告表示のためCookieを使用する場合があります。
-    3. **運営者**: KUINA AI 運営事務局
-    """)
