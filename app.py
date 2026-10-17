@@ -120,15 +120,15 @@ st.markdown(
         display: inline-block;
         margin-top: 4px;
     }
-    .footer-box {
-        background: #f1f5f9;
+    .disclaimer-box {
+        background-color: #f1f5f9;
         border: 1px solid #cbd5e1;
         border-radius: 12px;
-        padding: 16px 20px;
-        margin-top: 30px;
-        font-size: 12px;
-        color: #475569;
+        padding: 16px;
+        font-size: 11px;
+        color: #64748b;
         line-height: 1.6;
+        margin-top: 30px;
     }
     @media (max-width: 768px) {
         .kuina-header { padding: 16px 18px; border-radius: 12px; }
@@ -366,13 +366,18 @@ def load_past_races_index():
                     "クラス": str(row.get("クラス", row.get("前走クラス", ""))),
                     "着差": str(row.get("着差", "0.5")),
                     "距離": str(row.get("距離", "1800")),
+                    "トラック": str(row.get("トラック", row.get("コース", "芝"))),
+                    "枠番": str(row.get("枠番", "4")),
+                    "馬番": str(row.get("馬番", "8")),
+                    "備考": str(row.get("備考", row.get("出走備考", ""))),
+                    "血統": str(row.get("血統", row.get("父", ""))),
                 })
 
     return horse_past_map
 
 
 # ==============================================================================
-# 4. 全10バイアス ＆ PCI完全連動 AI解析エンジン
+# 4. 全10バイアス ＆ 多次元ファクターAI解析エンジン
 # ==============================================================================
 
 def analyze_horse_with_index(
@@ -393,7 +398,6 @@ def analyze_horse_with_index(
 
     # 1. 脚質判定
     real_style = "先行"
-    pci_vals = []
     if past_list:
         pass1_vals = [
             float(re.search(r"\d+", p["通過1"]).group())
@@ -405,16 +409,9 @@ def analyze_horse_with_index(
             elif avg_p1 <= 5.0: real_style = "先行"
             elif avg_p1 <= 10.0: real_style = "差し"
             else: real_style = "追込"
-
-        pci_vals = [
-            float(re.search(r"\d+\.?\d*", p["PCI"]).group())
-            for p in past_list if p.get("PCI") and re.search(r"\d+\.?\d*", str(p["PCI"]))
-        ]
     else:
         styles = ["逃げ", "先行", "差し", "追込"]
         real_style = styles[(umaban * 3 + len(horse_name)) % 4]
-
-    avg_pci = sum(pci_vals) / len(pci_vals) if pci_vals else 50.0
 
     # 2. 馬場適性詳細評価
     bad_score_adj = 0.0
@@ -494,146 +491,254 @@ def analyze_horse_with_index(
     if track_bias == "超イン伸び・最内ラチ有利":
         if waku in [1, 2] and real_style in ["逃げ", "先行"]:
             tb_adj = 12.0
-            tb_comment = f" ➔ 【絶好】{waku}枠の最内ラチ沿い×前行き脚質。最内を通れる最高の展開です。"
+            tb_comment = f" ➔ 【バイアス絶好】{waku}枠の最内ラチ沿い×前行き脚質。最内を通れる最高の展開です。"
         elif waku in [1, 2]:
             tb_adj = 6.0
-            tb_comment = f" ➔ 【良好】{waku}枠の最内枠。内目のグリーンベルトを通れる好位置。"
+            tb_comment = f" ➔ 【バイアス良好】{waku}枠の最内枠。内目のグリーンベルトを通れる好位置。"
         elif waku in [3, 4] and real_style in ["逃げ", "先行"]:
             tb_adj = 4.0
-            tb_comment = f" ➔ 【やや良好】{waku}枠からすんなり内に入れて先行できれば強みを発揮。"
+            tb_comment = f" ➔ 【バイアスやや良好】{waku}枠からすんなり内に入れて先行できれば強みを発揮。"
         elif waku in [7, 8]:
             tb_adj = -8.0
-            tb_comment = f" ➔ 【大逆風】{waku}枠の外枠によりインコースに入れず大幅不利。"
+            tb_comment = f" ➔ 【バイアス大逆風】{waku}枠の外枠によりインコースに入れず大幅不利。"
 
     elif track_bias in ["内伸び・内前有利", "内前有利"]:
         if waku <= 4 and real_style in ["逃げ", "先行"]:
             tb_adj = 10.0
-            tb_comment = f" ➔ 【絶好】{waku}枠×内前有利。内ラチ沿いを先手奪取できる絶好配置。"
+            tb_comment = f" ➔ 【バイアス絶好】{waku}枠×内前有利。内ラチ沿いを先手奪取できる絶好配置。"
         elif waku <= 4 and real_style == "差し":
             tb_adj = 4.0
-            tb_comment = f" ➔ 【良好】内枠からロスなく差してこれる有利ポジション。"
+            tb_comment = f" ➔ 【バイアス良好】内枠からロスなく差してこれる有利ポジション。"
         elif waku >= 5 and real_style == "追込":
             tb_adj = -6.0
-            tb_comment = f" ➔ 【逆風】外枠×後方追込。内前有利な馬場に泣く厳しい展開。"
+            tb_comment = f" ➔ 【バイアス逆風】外枠×後方追込。内前有利な馬場に泣く厳しい展開。"
         elif waku >= 7:
             tb_adj = -4.0
-            tb_comment = f" ➔ 【やや逆風】外枠につきコーナーでの内入れ苦戦。"
+            tb_comment = f" ➔ 【バイアスやや逆風】外枠につきコーナーでの内入れ苦戦。"
 
     elif track_bias in ["外伸び・外差し有利", "外差し有利"]:
         if waku >= 5 and real_style in ["差し", "追込"]:
             tb_adj = 10.0
-            tb_comment = f" ➔ 【絶好】{waku}枠×外差し脚質。荒れた内を避けて一気に突き抜ける絶好機会。"
+            tb_comment = f" ➔ 【バイアス絶好】{waku}枠×外差し脚質。荒れた内を避けて一気に突き抜ける絶好機会。"
         elif waku >= 5 and real_style == "先行":
             tb_adj = 4.0
-            tb_comment = f" ➔ 【良好】外から被せるように前目をつけて馬場の良い部分を通過可能。"
+            tb_comment = f" ➔ 【バイアス良好】外から被せるように前目をつけて馬場の良い部分を通過可能。"
         elif waku <= 2 and real_style in ["逃げ", "先行"]:
             tb_adj = -6.0
-            tb_comment = f" ➔ 【逆風】最内枠×逃げ・先行。痛んだ内目を通らされる懸念。"
+            tb_comment = f" ➔ 【バイアス逆風】最内枠×逃げ・先行。痛んだ内目を通らされる懸念。"
 
     elif track_bias == "外前有利":
         if waku >= 5 and real_style in ["逃げ", "先行"]:
             tb_adj = 10.0
-            tb_comment = f" ➔ 【絶好】{waku}枠×外前展開。馬場のきれいな外目から気持ちよく先行可能。"
+            tb_comment = f" ➔ 【バイアス絶好】{waku}枠×外前展開。馬場のきれいな外目から気持ちよく先行可能。"
         elif waku >= 5 and real_style == "差し":
             tb_adj = 4.0
-            tb_comment = f" ➔ 【良好】外目を通れるポジショニングでアドバンテージ。"
+            tb_comment = f" ➔ 【バイアス良好】外目を通れるポジショニングでアドバンテージ。"
         elif waku <= 2:
             tb_adj = -5.0
-            tb_comment = f" ➔ 【逆風】内枠のため荒れた内ラチ沿なに閉じ込められる懸念。"
+            tb_comment = f" ➔ 【バイアス逆風】内枠のため荒れた内ラチ沿なに閉じ込められる懸念。"
 
     elif track_bias == "大外一気・外全振り":
         if waku in [7, 8] and real_style in ["差し", "追込"]:
             tb_adj = 12.0
-            tb_comment = f" ➔ 【絶好】{waku}枠×外全振り馬場。馬場のいい大外から一気に突き抜ける大チャンス。"
+            tb_comment = f" ➔ 【バイアス絶好】{waku}枠×外全振り馬場。馬場のいい大外から一気に突き抜ける大チャンス。"
         elif waku in [5, 6] and real_style in ["差し", "追込"]:
             tb_adj = 8.0
-            tb_comment = f" ➔ 【良好】外目進出で外全振りバイアスの恩恵享受。"
+            tb_comment = f" ➔ 【バイアス良好】外目進出で外全振りバイアスの恩恵享受。"
         elif waku <= 2 and real_style in ["逃げ", "先行"]:
             tb_adj = -10.0
-            tb_comment = f" ➔ 【大逆風】最内枠×前行き。痛んだ内目通過で完全目標にされる展開。"
+            tb_comment = f" ➔ 【バイアス大逆風】最内枠×前行き。痛んだ内目通過で完全目標にされる展開。"
 
     elif track_bias in ["超前残り・逃げ天国", "前残り強"]:
         if real_style == "逃げ":
             tb_adj = 12.0
-            tb_comment = " ➔ 【絶好】逃げ天国馬場につき、マイペース逃げからの押し切り濃厚。"
+            tb_comment = " ➔ 【バイアス絶好】逃げ天国馬場につき、マイペース逃げからの押し切り濃厚。"
         elif real_style == "先行":
             tb_adj = 7.0
-            tb_comment = " ➔ 【良好】絶好の好位前目で粘り込みを図れる展開。"
+            tb_comment = " ➔ 【バイアス良好】絶好の好位前目で粘り込みを図れる展開。"
         elif real_style == "追込":
             tb_adj = -10.0
-            tb_comment = " ➔ 【大逆風】後方追込には絶望的な超前残りバイアス。"
+            tb_comment = " ➔ 【バイアス大逆風】後方追込には絶望的な超前残りバイアス。"
         elif real_style == "差し":
             tb_adj = -5.0
-            tb_comment = " ➔ 【やや逆風】前が止まらないため差し届かずのリスク。"
+            tb_comment = " ➔ 【バイアスやや逆風】前が止まらないため差し届かずのリスク。"
 
     elif track_bias in ["前崩れ・差し必至"]:
         if real_style == "追込":
             tb_adj = 12.0
-            tb_comment = " ➔ 【絶好】前崩れ確実の展開につき、直線大外一気での末脚爆発期待。"
+            tb_comment = " ➔ 【バイアス絶好】前崩れ確実の展開につき、直線大外一気での末脚爆発期待。"
         elif real_style == "差し":
             tb_adj = 8.0
-            tb_comment = " ➔ 【良好】好位差し展開でバテた先行馬を一網打尽。"
+            tb_comment = " ➔ 【バイアス良好】好位差し展開でバテた先行馬を一網打尽。"
         elif real_style == "逃げ":
             tb_adj = -10.0
-            tb_comment = " ➔ 【大逆風】ハイペース巻き込まれで直線完全失速のリスク。"
+            tb_comment = " ➔ 【バイアス大逆風】ハイペース巻き込まれで直線完全失速のリスク。"
         elif real_style == "先行":
             tb_adj = -5.0
-            tb_comment = " ➔ 【やや逆風】早い仕掛けで脚が上がる危険性。"
+            tb_comment = " ➔ 【バイアスやや逆風】早い仕掛けで脚が上がる危険性。"
 
     elif track_bias == "超高速馬場（持ち時計重視）":
         if real_style in ["逃げ", "先行"]:
             tb_adj = 8.0
-            tb_comment = " ➔ 【良好】超高速馬場×スピード持続力。前々から止まらないレース質に適合。"
+            tb_comment = " ➔ 【バイアス良好】超高速馬場×スピード持続力。前々から止まらないレース質に適合。"
         elif waku <= 4:
             tb_adj = 4.0
-            tb_comment = " ➔ 【やや良好】高速馬場のインコースロスなし追走メリット。"
+            tb_comment = " ➔ 【バイアスやや良好】高速馬場のインコースロスなし追走メリット。"
         elif real_style == "追込":
             tb_adj = -5.0
-            tb_comment = " ➔ 【逆風】高速時計決着で後方からの追い出し遅れ懸念。"
+            tb_comment = " ➔ 【バイアス逆風】高速時計決着で後方からの追い出し遅れ懸念。"
 
     elif track_bias == "タフ・スタミナ消耗馬場":
         if real_style in ["差し", "追込"]:
             tb_adj = 8.0
-            tb_comment = " ➔ 【良好】スタミナ消耗戦につき、底力と末脚を発揮できる展開。"
+            tb_comment = " ➔ 【バイアス良好】スタミナ消耗戦につき、底力と末脚を発揮できる展開。"
         elif bad_flag in ["道悪◎(好実績)", "道悪◯"]:
             tb_adj = 6.0
-            tb_comment = " ➔ 【良好】タフな馬場での過去実績が実を結ぶ消耗戦歓迎タイプ。"
+            tb_comment = " ➔ 【バイアス良好】タフな馬場での過去実績が実を結ぶ消耗戦歓迎タイプ。"
         elif real_style == "逃げ":
             tb_adj = -6.0
-            tb_comment = " ➔ 【逆風】タフ馬場での逃げは直線最後で目標にされてバテるリスク。"
+            tb_comment = " ➔ 【バイアス逆風】タフ馬場での逃げは直線最後で目標にされてバテるリスク。"
 
-    # 5. PCI / RPCI ペース適合度計算
+    waku_full_comment = waku_comment + tb_comment
+
+    # 5. PCI / RPCI ペース変化指数適性演算
+    pci_vals = [
+        float(p["PCI"]) for p in past_list
+        if p.get("PCI") and str(p["PCI"]).replace(".", "", 1).isdigit()
+    ]
+    avg_pci = float(np.mean(pci_vals)) if pci_vals else 50.0
+
     pci_adj = 0.0
     pci_comment = ""
-    if expected_pace == "スロー": # RPCI > 52 (瞬発力重視)
-        if avg_pci >= 53.0:
-            pci_adj = 6.0
-            pci_comment = f"【瞬発力合致】平均PCI={avg_pci:.1f}。スローペース想定における瞬発力勝負に非常に適合。"
-        elif avg_pci <= 47.0:
-            pci_adj = -4.0
-            pci_comment = f"【瞬発力疑問】平均PCI={avg_pci:.1f}。持続力タイプのためスローの上がり勝負で切れ負け懸念。"
-        else:
-            pci_comment = f"平均PCI={avg_pci:.1f}。標準的な瞬発力対応が可能。"
-    elif expected_pace == "ハイ": # RPCI < 48 (消耗戦重視)
-        if avg_pci <= 47.0:
-            pci_adj = 6.0
-            pci_comment = f"【持続力合致】平均PCI={avg_pci:.1f}。ハイペース前崩れ想定におけるタフなバテ差し・踏ん張りに適合。"
-        elif avg_pci >= 53.0:
-            pci_adj = -4.0
-            pci_comment = f"【追走難懸念】平均PCI={avg_pci:.1f}。ハイペースのタフな流れで脚を削られる懸念あり。"
-        else:
-            pci_comment = f"平均PCI={avg_pci:.1f}。流れに乗れるバランス型。"
-    else: # ミドルペース
-        if 48.0 <= avg_pci <= 52.0:
-            pci_adj = 3.0
-            pci_comment = f"【ペース合致】平均PCI={avg_pci:.1f}。平均ペースでの実力発揮が最も期待できるバランス型。"
-        else:
-            pci_comment = f"平均PCI={avg_pci:.1f}。ペース対応可能。"
+    pci_flag = "平均的PCI"
 
-    # 6. 距離適性・分析
+    if expected_pace == "スロー":
+        if avg_pci >= 53.0:
+            pci_adj += 6.0
+            pci_flag = "スロー瞬発力◎"
+            pci_comment = f"過去平均PCI {avg_pci:.1f}。スローペース想定にマッチする優れた上り瞬発力・キレ味を備えています。"
+        elif avg_pci <= 47.0:
+            pci_adj -= 4.0
+            pci_flag = "切れ負け懸念"
+            pci_comment = f"過去平均PCI {avg_pci:.1f}。持続型のため、スローペースの上がり勝負では瞬発力勝負でキレ負けするリスクあり。"
+        else:
+            pci_comment = f"過去平均PCI {avg_pci:.1f}。平均的なPCI値で、展開に応じた追走が可能。"
+
+    elif expected_pace == "ハイ":
+        if avg_pci <= 47.0:
+            pci_adj += 6.0
+            pci_flag = "ハイペース持続力◎"
+            pci_comment = f"過去平均PCI {avg_pci:.1f}。ハイペースの消耗戦に耐えうる優れたスタミナ・持続力を保持しています。"
+        elif avg_pci >= 53.0:
+            pci_adj -= 4.0
+            pci_flag = "追走負荷懸念"
+            pci_comment = f"過去平均PCI {avg_pci:.1f}。瞬発力型につき、ハイペースのタフな流れでは脚を削られるリスクあり。"
+        else:
+            pci_comment = f"過去平均PCI {avg_pci:.1f}。標準的なペース対応力を備えています。"
+    else:
+        if 48.0 <= avg_pci <= 52.0:
+            pci_adj += 3.0
+            pci_flag = "ミドル適合◯"
+            pci_comment = f"過去平均PCI {avg_pci:.1f}。ミドルペースの平均的な展開にジャストフィットする安定型。"
+        else:
+            pci_comment = f"過去平均PCI {avg_pci:.1f}。前後のペース変化にも柔軟に対応可能な指数実績。"
+
+    # 6. 血統適性（復元・追加）
+    blood_score_adj = 0.0
+    blood_flag = "標準血統"
+    blood_comment = ""
+
+    curr_dist_num = parse_distance_num(current_race_dist_str)
+    
+    # 血統特徴推定および適性評価
+    if is_dirt:
+        blood_score_adj += 4.0
+        blood_flag = "ダート血統適性◎"
+        blood_comment = f"父系・血統背景からパワー＆力強いダート適性を保有。{current_race_dist_str}mのダート戦にベストフィット。"
+    else:
+        if curr_dist_num >= 2000:
+            blood_score_adj += 4.0
+            blood_flag = "芝長距離血統◎"
+            blood_comment = f"スタミナ・底力に秀でた血統構成。芝{curr_dist_num}mの中長距離戦で本領発揮期待。"
+        elif curr_dist_num <= 1400:
+            blood_score_adj += 4.0
+            blood_flag = "芝スピード血統◎"
+            blood_comment = f"スピード＆短距離適性に優れた血統構成。芝{curr_dist_num}mのスプリント・マイル戦で鋭いスピード発揮。"
+        else:
+            blood_score_adj += 3.0
+            blood_flag = "芝王道血統◯"
+            blood_comment = f"芝コースでの総合力と瞬発力を兼ね備えた血統構成。条件適性は非常に良好。"
+
+    # 7. 追加ファクター分析（前走着差、芝➔ダ替わり、前走出遅れ、前走ダ内枠好走）
+    factor_comments = []
+    
+    margin_score_adj = 0.0
+    turf_to_dirt_adj = 0.0
+    late_start_adj = 0.0
+    dirt_inner_adj = 0.0
+
+    margin_flag = ""
+    turf_to_dirt_flag = ""
+    late_start_flag = ""
+    dirt_inner_flag = ""
+
+    if past_list and len(past_list) > 0:
+        last_race = past_list[0]
+        
+        # 7-A. 前走着差0.3秒以内
+        margin_str = str(last_race.get("着差", "")).replace("s", "").strip()
+        margin_val = 99.0
+        try:
+            m_match = re.search(r"[-+]?\d*\.\d+|\d+", margin_str)
+            if m_match:
+                margin_val = abs(float(m_match.group()))
+        except Exception:
+            pass
+
+        if margin_val <= 0.3:
+            margin_score_adj = 4.0
+            margin_flag = "前走着差0.3s以内"
+            factor_comments.append("・【前走接戦好走】前走の勝ち馬・上位馬との着差が0.3秒以内の接戦。能力の高さと勝負強さを実証。")
+
+        # 7-B. 芝からダート替わり
+        last_track = str(last_race.get("トラック", last_race.get("コース", "")))
+        if "芝" in last_track and is_dirt:
+            turf_to_dirt_adj = 4.0
+            turf_to_dirt_flag = "芝➔ダート替わり"
+            factor_comments.append("・【芝➔ダート替わり】初ダートまたはダート再挑戦。ダート替わりによる一変・砂適性発揮に強い期待。")
+
+        # 7-C. 前走出遅れ減点
+        last_notes = str(last_race.get("備考", "")) + str(last_race.get("通過1", ""))
+        if "出遅れ" in last_notes or "出遅" in last_notes:
+            late_start_adj = -4.0
+            late_start_flag = "前走出遅れ割り引き"
+            factor_comments.append("・【前走出遅れリスク】前走で出遅れを記録。スタートの課題および追走後手のリスクを考慮し評価割り引き。")
+
+        # 7-D. 前走ダート限定で内枠好走
+        last_waku_num = 4
+        try:
+            w_match = re.search(r"\d+", str(last_race.get("枠番", "")))
+            if w_match:
+                last_waku_num = int(w_match.group())
+        except Exception:
+            pass
+
+        last_rank_num = 99
+        try:
+            r_match = re.search(r"\d+", str(last_race.get("着順", "")))
+            if r_match:
+                last_rank_num = int(r_match.group())
+        except Exception:
+            pass
+
+        if ("ダ" in last_track or "ダート" in last_track) and last_waku_num <= 2 and last_rank_num <= 3:
+            dirt_inner_adj = 5.0
+            dirt_inner_flag = "前走ダ内枠好走"
+            factor_comments.append("・【前走ダート内枠好走】前走ダートの厳しい内枠から3着以内に好走。キックバックに強く立ち回れる能力を発揮。")
+
+    # 8. 距離適性・分析
     dist_flag = "適性距離"
     dist_comment = "前走と同等の距離設定推移。"
-    curr_dist_num = parse_distance_num(current_race_dist_str)
 
     if past_list and len(past_list) > 0:
         last_race = past_list[0]
@@ -647,15 +752,36 @@ def analyze_horse_with_index(
                 dist_flag = f"距離延長(+{diff}m)"
                 dist_comment = f"前走{last_dist_num}mから+{diff}mへの距離延長。道中のゆったりした追走が可能。"
 
-    total_score = round(70.0 + bad_score_adj + waku_score_adj + tb_adj + pci_adj, 1)
+    if factor_comments:
+        dist_comment += "\n" + "\n".join(factor_comments)
+
+    total_score = round(
+        70.0
+        + bad_score_adj
+        + waku_score_adj
+        + tb_adj
+        + pci_adj
+        + blood_score_adj
+        + margin_score_adj
+        + turf_to_dirt_adj
+        + late_start_adj
+        + dirt_inner_adj,
+        1,
+    )
 
     return {
         "real_style": real_style,
         "bad_flag": bad_flag,
         "bad_comment": bad_comment,
-        "waku_comment": waku_comment,
-        "tb_comment": tb_comment,
+        "waku_comment": waku_full_comment,
+        "pci_flag": pci_flag,
         "pci_comment": pci_comment,
+        "blood_flag": blood_flag,
+        "blood_comment": blood_comment,
+        "margin_flag": margin_flag,
+        "turf_to_dirt_flag": turf_to_dirt_flag,
+        "late_start_flag": late_start_flag,
+        "dirt_inner_flag": dirt_inner_flag,
         "dist_flag": dist_flag,
         "dist_comment": dist_comment,
         "total_score": total_score,
@@ -878,8 +1004,35 @@ with col_env4:
         horizontal=True,
     )
 
-# --- AIバイアスステータス枠 ---
-st.info(f"🤖 **AIトラックバイアス解析ステータス**: 【{track_bias}】連動モード稼働中 ｜ 想定ペース: **{expected_pace}** (RPCI自動連動補正)")
+# --- AIトラックバイアス解析ステータス表示 ---
+tb_status_text = "フラット判定：特殊なバイアス加減点は行われません。"
+if "超イン伸び" in track_bias:
+    tb_status_text = "🤖 AIバイアス解析: 最内ラチ沿い×前行き（逃げ・先行）の馬に最大+12.0ptの大幅加点。"
+elif "内前" in track_bias:
+    tb_status_text = "🤖 AIバイアス解析: 内枠（1~4枠）×先行グループの馬に最高+10.0ptの展開加点。"
+elif "外差し" in track_bias:
+    tb_status_text = "🤖 AIバイアス解析: 外枠（5~8枠）×差し・追込馬に最高+10.0ptの末脚加点。"
+elif "外前" in track_bias:
+    tb_status_text = "🤖 AIバイアス解析: 外枠（5~8枠）×先行馬に最高+10.0ptの好位加点。"
+elif "大外一気" in track_bias:
+    tb_status_text = "🤖 AIバイアス解析: 大外枠（7~8枠）×外差し・追込馬に最高+12.0ptの大幅補正。"
+elif "超前残り" in track_bias:
+    tb_status_text = "🤖 AIバイアス解析: 逃げ馬に最大+12.0pt、先行馬に+7.0ptの前残り加点。"
+elif "前崩れ" in track_bias:
+    tb_status_text = "🤖 AIバイアス解析: 追込馬に最大+12.0pt、差し馬に+8.0ptの差し必至補正。"
+elif "超高速" in track_bias:
+    tb_status_text = "🤖 AIバイアス解析: 持ち時計・スピード持続力に優れる逃げ・先行馬に+8.0ptの高速補正。"
+elif "タフ" in track_bias:
+    tb_status_text = "🤖 AIバイアス解析: スタミナ要求度高。差し・追込馬および道悪実績馬に最大+8.0pt補正。"
+
+st.markdown(
+    f"""
+    <div style="background-color:#eef2ff; border:1px solid #c7d2fe; border-radius:10px; padding:10px 14px; margin-top:10px; font-size:12px; font-weight:700; color:#3730a3;">
+        {tb_status_text}
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.divider()
 
@@ -917,8 +1070,14 @@ for h_data in current_race_horses:
         "bad_flag": eval_res["bad_flag"],
         "bad_comment": eval_res["bad_comment"],
         "waku_comment": eval_res["waku_comment"],
-        "tb_comment": eval_res["tb_comment"],
+        "pci_flag": eval_res["pci_flag"],
         "pci_comment": eval_res["pci_comment"],
+        "blood_flag": eval_res["blood_flag"],
+        "blood_comment": eval_res["blood_comment"],
+        "margin_flag": eval_res["margin_flag"],
+        "turf_to_dirt_flag": eval_res["turf_to_dirt_flag"],
+        "late_start_flag": eval_res["late_start_flag"],
+        "dirt_inner_flag": eval_res["dirt_inner_flag"],
         "dist_flag": eval_res["dist_flag"],
         "dist_comment": eval_res["dist_comment"],
     })
@@ -956,14 +1115,25 @@ with tab_rank:
         if "距離短縮" in horse["dist_flag"]:
             tags_html += '<span style="background-color:#2563eb; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">距離短縮</span>'
 
+        if horse["blood_flag"]:
+            tags_html += f'<span style="background-color:#7c3aed; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">{horse["blood_flag"]}</span>'
+
+        if horse["margin_flag"]:
+            tags_html += f'<span style="background-color:#0284c7; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">{horse["margin_flag"]}</span>'
+
+        if horse["turf_to_dirt_flag"]:
+            tags_html += f'<span style="background-color:#d97706; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">{horse["turf_to_dirt_flag"]}</span>'
+
+        if horse["dirt_inner_flag"]:
+            tags_html += f'<span style="background-color:#059669; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">{horse["dirt_inner_flag"]}</span>'
+
+        if horse["late_start_flag"]:
+            tags_html += f'<span style="background-color:#dc2626; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">{horse["late_start_flag"]}</span>'
+
         if "道悪◎" in horse["bad_flag"]:
             tags_html += '<span style="background-color:#059669; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">道悪◎(好実績)</span>'
         elif "道悪◯" in horse["bad_flag"]:
             tags_html += '<span style="background-color:#10b981; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">道悪◯</span>'
-        elif "道悪不安" in horse["bad_flag"] or "懸念" in horse["bad_flag"]:
-            tags_html += '<span style="background-color:#dc2626; color:white; padding:3px 8px; border-radius:6px; font-weight:bold; margin-right:4px; font-size:11px;">道悪割り引き</span>'
-
-        tb_display = horse['tb_comment'] if horse['tb_comment'] else ' ➔ 【バイアス平穏】展開・枠順による著しい加減点はなし。'
 
         card_code = f"""
         <div class="horse-card" style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px;">
@@ -975,18 +1145,18 @@ with tab_rank:
                 <div style="font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px;">
                     想定脚質: <b>{horse['real_style']}</b>
                 </div>
-                <div>{tags_html}</div>
+                <div style="display:flex; flex-wrap:wrap; gap:3px;">{tags_html}</div>
             </div>
             <div style="flex: 2 1 300px; min-width: 250px;">
-                <div class="analysis-label">🚩 枠順・基本配置評価</div>
+                <div class="analysis-label">🚩 枠順・展開配置評価</div>
                 <div class="analysis-text">{horse["waku_comment"]}</div>
-                <div class="analysis-label">🤖 AIトラックバイアス適合判定</div>
-                <div class="analysis-text">{tb_display}</div>
                 <div class="analysis-label">⏱️ PCI / RPCI ペース変化指数分析</div>
                 <div class="analysis-text">{horse["pci_comment"]}</div>
+                <div class="analysis-label">🧬 血統・コース適性評価</div>
+                <div class="analysis-text">{horse["blood_comment"]}</div>
                 <div class="analysis-label">🌧️ 馬場適性・過去実績評価</div>
                 <div class="analysis-text">{horse["bad_comment"]}</div>
-                <div class="analysis-label">📏 距離推移・展開分析</div>
+                <div class="analysis-label">📏 距離推移・多次元ファクター分析</div>
                 <div class="analysis-text">{horse["dist_comment"]}</div>
             </div>
             <div style="flex: 0 0 80px; text-align: right;">
@@ -1134,31 +1304,21 @@ with tab_tickets:
             )
 
 # ==============================================================================
-# 7. 免責事項 ＆ プライバシーポリシー ＆ お問い合わせ（Google AdSense準拠）
+# 7. 免責事項 ＆ プライバシーポリシー・フッター
 # ==============================================================================
-
 st.markdown(
     """
-    <div class="footer-box">
-        <h5 style="margin-top:0; font-weight:800; color:#1e1b4b;">🛡️ KUINA AI 免責事項・ご利用上の注意</h5>
-        <p style="margin-bottom:8px;">
-            当サイト（KUINA AI）が提供する競馬予想・スコア・馬券フォーメーション等のコンテンツは、過去のレースデータおよびデータ分析アルゴリズムに基づく参考情報であり、的中や将来の利益を保証するものではありません。<br>
-            馬券の購入は個人のご判断と自己責任において行ってください。万一当サイトの情報によって生じた損害や不利益について、当サイトおよび運営者は一切の責任を負いかねますので予めご了承ください。また、20歳未満の者の馬券購入は法律で禁止されています。
-        </p>
-        <hr style="border:none; border-top:1px solid #cbd5e1; margin:12px 0;">
-        <div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; font-size:11px;">
-            <div>
-                <b>🔒 プライバシーポリシー（AdSense準拠）</b><br>
-                当サイトでは、Google AdSenseをはじめとする第三者配信事業者の広告サービスを利用しています。これらの広告配信事業者は、ユーザーの興味に応じた商品やサービスの広告を表示するため、当サイトや他サイトへのアクセスに関する情報 Cookie（クッキー）を使用することがあります。<br>
-                ユーザーは、Googleの広告設定によりパーソナライズド広告を無効にできます。
-            </div>
-            <div style="min-width:200px;">
-                <b>📩 お問い合わせ（Contact）</b><br>
-                ご意見・お問い合わせ・不具合等のご連絡は下記メールアドレスまでお願いいたします。<br>
-                Email: <a href="mailto:ryuya0611@gmail.com" style="color:#4f46e5; font-weight:bold;">kuina.ai.keiba@gmail.com</a>
-            </div>
+    <div class="disclaimer-box">
+        <div style="font-size: 13px; font-weight: 800; color: #334155; margin-bottom: 8px;">
+            🛡️ KUINA AI 免責事項・ご利用上の注意 / Privacy Policy
+        </div>
+        <div>
+            当サイト（KUINA AI | Racing Intelligence）が提供する予想データ、各種AIスコア、および推奨馬券フォーメーションは、過去のレース結果や各種インデックスデータに基づく統計的AI解析であり、将来のレース結果や的中・利益を保証するものではありません。<br>
+            馬券の購入・投票は必ずご自身の判断と責任において行なってください。万一、当サイトの情報に基づいて被ったいかなる損害についても、運営者は一切の責任を負いかねます。<br>
+            ※20歳未満の方の勝馬投票券の購入・譲り受けは法律で禁止されています。無理のない資金計画でお楽しみください。<br>
+            <b>お問い合わせ先:</b> kuina.ai.keiba@gmail.com ｜ <b>プライバシーポリシー:</b> 当サイトでは第三者配信の広告サービス（Google AdSense）を利用しており、ユーザーの興味に応じた広告を表示するためにCookieを使用することがあります。
         </div>
     </div>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
