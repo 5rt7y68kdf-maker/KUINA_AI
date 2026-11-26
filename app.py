@@ -2,7 +2,7 @@ import streamlit as st
 
 # 1. ページ基本設定
 st.set_page_config(
-    page_title="KUINA AI 競馬オンラインサロン",
+    page_title="MAITO AI 競馬オンラインサロン",
     page_icon="🤖",
     layout="centered",
     initial_sidebar_state="collapsed"
