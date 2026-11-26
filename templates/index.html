@@ -1,167 +1,117 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ selected_race.title }} - 競馬データ分析ダッシュボード</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KUINA AI 競馬オンラインサロン | PCデータ解析＆初心者攻略</title>
+  <style>
+    :root { --primary: #1a365d; --accent: #d69e2e; --bg: #f7fafc; --text: #2d3748; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; background: var(--bg); color: var(--text); line-height: 1.6; }
+    header { background: var(--primary); color: white; padding: 40px 20px; text-align: center; }
+    header h1 { margin: 0; font-size: 1.8rem; }
+    header p { margin-top: 10px; color: #cbd5e0; font-size: 0.95rem; }
+    .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+    .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .btn-stripe { display: block; width: 100%; max-width: 350px; margin: 20px auto; padding: 16px; background: #38a169; color: white; text-align: center; font-weight: bold; font-size: 1.1rem; text-decoration: none; border-radius: 8px; box-shadow: 0 4px 12px rgba(56,161,105,0.3); transition: transform 0.2s; }
+    .btn-stripe:hover { transform: translateY(-2px); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin: 20px 0; }
+    .grid-item { background: #edf2f7; padding: 16px; border-radius: 8px; font-size: 0.9rem; }
+    .factor-box { background: #f7fafc; border-left: 4px solid #3182ce; padding: 10px 14px; margin: 8px 0; border-radius: 4px; font-size: 0.9rem; }
+    textarea { width: 100%; height: 160px; padding: 12px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing: border-box; font-size: 0.85rem; }
+    .admin-btn { background: #3182ce; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 8px; }
+    footer { text-align: center; font-size: 0.8rem; color: #718096; padding: 30px 20px; border-top: 1px solid #e2e8f0; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <h1>🏇 {{ selected_race.title }}</h1>
-            <p class="subtitle">過去5年データ × 馬場条件選択 × 展開自動解析ダッシュボード</p>
-        </header>
 
-        <!-- 設定パネル（レース・天気・馬場状態・バイアス選択） -->
-        <section class="card config-card">
-            <h2>⚙️ 条件設定パネル</h2>
-            <form method="GET" action="/" class="config-form">
-                <div class="form-group">
-                    <label for="race_id">🎯 対象レース:</label>
-                    <select name="race_id" id="race_id" onchange="this.form.submit()" class="form-control">
-                        {% for race in all_races %}
-                            <option value="{{ race.id }}" {% if race.id == selected_race.id %}selected{% endif %}>
-                                {{ race.title }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
+  <!-- 1. サロンヘッダー -->
+  <header>
+    <h1>🤖 KUINA AI 競馬オンラインサロン</h1>
+    <p>PC管理AIによる高精度データ解析 × 勝ち残るための初心者攻略コラム</p>
+  </header>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="weather">☀️ 天気:</label>
-                        <select name="weather" id="weather" onchange="this.form.submit()" class="form-control">
-                            {% for w in ["晴", "曇", "雨", "小雨", "雪"] %}
-                                <option value="{{ w }}" {% if w == weather %}selected{% endif %}>{{ w }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+  <div class="container">
 
-                    <div class="form-group">
-                        <label for="track_condition">🌱 馬場状態:</label>
-                        <select name="track_condition" id="track_condition" onchange="this.form.submit()" class="form-control">
-                            {% for tc in ["良", "稍重", "重", "不良"] %}
-                                <option value="{{ tc }}" {% if tc == track_condition %}selected{% endif %}>{{ tc }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+    <!-- 2. 会員特典・サービス特徴 -->
+    <div class="card">
+      <h2 style="color: var(--primary); font-size: 1.3rem;">💡 サロンで提供する3つの価値</h2>
+      <div class="grid">
+        <div class="grid-item">
+          <strong>📊 PC管理AI予想の完全公開</strong><br>
+          6つの主要ファクター（枠・馬場・距離・脚質・騎手・近走）を完全数値化したAIスコアと買い目を毎週末配信。
+        </div>
+        <div class="grid-item">
+          <strong>📱 限定LINEオープンチャット</strong><br>
+          リアルタイムの直前気配・最終予想をスマホのプッシュ通知で直接受信。
+        </div>
+        <div class="grid-item">
+          <strong>🎓 初心者向け上達コラム</strong><br>
+          点数を絞る資金配分術、各コースの枠順有利不利、データから導く穴馬の抽出法を伝授。
+        </div>
+      </div>
 
-                    <div class="form-group flex-1">
-                        <label for="track_bias">🚩 コース・脚質傾向:</label>
-                        <select name="track_bias" id="track_bias" onchange="this.form.submit()" class="form-control">
-                            {% for tb in ["前・先行有利", "標準・フラット", "内枠有利", "差し・外有利"] %}
-                                <option value="{{ tb }}" {% if tb == track_bias %}selected{% endif %}>{{ tb }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-            </form>
-        </section>
-
-        <!-- 展開予想カード -->
-        <section class="card pace-card">
-            <h2>⏱️ 展開予想（ペース & 隊列シナリオ）</h2>
-            <div class="pace-grid">
-                <div class="pace-item">
-                    <span class="label">想定ペース</span>
-                    <span class="value-highlight">{{ data.pace_analysis.pace }}</span>
-                </div>
-                <div class="pace-item">
-                    <span class="label">前目構成</span>
-                    <span class="value">{{ data.pace_analysis.front_runners }}</span>
-                </div>
-            </div>
-            <div class="scenario-box">
-                <p><strong>【展開シナリオ】</strong> {{ data.pace_analysis.scenario }}</p>
-            </div>
-        </section>
-
-        <!-- コース黄金パターンカード -->
-        <section class="card">
-            <h2>💡 コース黄金パターン & 馬場傾向</h2>
-            <div class="summary-grid">
-                <div class="summary-item">
-                    <span class="label">5年最高複勝率枠</span>
-                    <span class="value-highlight">{{ data.golden_pattern.top_frame }}</span>
-                </div>
-                <div class="summary-item">
-                    <span class="label">5年最高複勝率脚質</span>
-                    <span class="value">{{ data.golden_pattern.top_style }}</span>
-                </div>
-                <div class="summary-item">
-                    <span class="label">現在の設定馬場</span>
-                    <span class="value status-badge">{{ data.golden_pattern.bias_note }}</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- AIおすすめ馬券（5パターン） -->
-        <section class="card betting-card">
-            <h2>🎯 AIおすすめ馬券（5パターン）</h2>
-            <div class="betting-grid">
-                {% for pat in data.betting_patterns %}
-                <div class="betting-item">
-                    <div class="betting-header">
-                        <span class="betting-badge {{ pat.badge_class }}">{{ pat.badge }}</span>
-                        <span class="betting-type">{{ pat.type }}</span>
-                    </div>
-                    <h3 class="betting-title">{{ pat.name }}</h3>
-                    <div class="betting-recommendation">
-                        <span class="rec-label">推奨買い目:</span>
-                        <code class="rec-code">{{ pat.recommendation }}</code>
-                    </div>
-                    <p class="betting-desc">{{ pat.description }}</p>
-                    <div class="betting-risk">
-                        <span class="risk-tag">特徴:</span> {{ pat.risk }}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </section>
-
-        <!-- 推奨馬ランキング -->
-        <section class="card">
-            <h2>📊 データ適性 & 条件補正スコアランキング</h2>
-            <table class="ranking-table">
-                <thead>
-                    <tr>
-                        <th>順位</th>
-                        <th>馬番</th>
-                        <th>馬名</th>
-                        <th>騎手</th>
-                        <th>枠 / 脚質</th>
-                        <th>データスコア</th>
-                        <th>判定 / 危険度</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for horse in data.horses %}
-                    <tr class="{% if horse.is_dangerous %}dangerous-row{% endif %}">
-                        <td><strong>{{ loop.index }}位</strong></td>
-                        <td><span class="frame-badge">{{ horse.num }}</span></td>
-                        <td><strong>{{ horse.name }}</strong></td>
-                        <td>{{ horse.jockey }}</td>
-                        <td>{{ horse.frame }}枠 / {{ horse.style }}</td>
-                        <td>
-                            <div class="score-bar-container">
-                                <span class="score-text">{{ horse.score }}点</span>
-                                <div class="score-bar" style="width: {{ horse.score }}%;"></div>
-                            </div>
-                        </td>
-                        <td>
-                            {% if horse.is_dangerous %}
-                                <span class="badge danger">⚠️ 危険な人気馬</span>
-                                <div class="danger-detail">{{ horse.danger_reason }}</div>
-                            {% else %}
-                                <span class="badge success">適性良好</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </section>
+      <div style="text-align: center; margin-top: 30px;">
+        <h3 style="margin-bottom: 5px;">月額会員プラン：3,000円 / 月（税込）</h3>
+        <p style="font-size: 0.85rem; color: #718096; margin-top: 0;">※Stripe決済完了後、即時LINEオープンチャットへ招待されます</p>
+        <!-- Stripe Payment Link URLを下記hrefに入力してください -->
+        <a href="YOUR_STRIPE_PAYMENT_LINK_HERE" class="btn-stripe" target="_blank">今すぐサロンに入会する（Stripe決済）</a>
+      </div>
     </div>
+
+    <!-- 3. 最新AI解析データ表示エリア（管理画面から反映） -->
+    <div class="card">
+      <h2 style="color: var(--primary); font-size: 1.3rem;">💎【最新】KUINA AI 厳選レース解析プレビュー</h2>
+      <div id="aiDisplay">
+        <p style="color: #a0aec0; text-align: center;">※最新の予想データがここに表示されます。</p>
+      </div>
+    </div>
+
+    <!-- 4. 初心者向けコラムコーナー -->
+    <div class="card">
+      <h2 style="color: var(--primary); font-size: 1.3rem;">📚 初心者向け必勝コラム（一部公開）</h2>
+      <h3>【第1回】トリガミを防ぐ「効率的な資金配分」の黄金比</h3>
+      <p style="font-size: 0.9rem;">競馬で勝つコツは「当てること」以上に「不的中時の資金を減らし、本線でしっかり回収すること」です。合成オッズ2.0倍以上をキープするための資金配分術を徹底解説します。</p>
+      <p style="font-size: 0.85rem; color: #3182ce;">※会員限定LINEオープンチャットの「ノート」にて全編・次回コラムを公開中！</p>
+    </div>
+
+    <!-- 5. 運営者用 AIテキスト貼り付け＆即時更新フォーム -->
+    <div class="card" style="border: 2px dashed #cbd5e0; background: #f7fafc;">
+      <h3 style="margin-top: 0; font-size: 1rem; color: #4a5568;">⚙️ 運営者専用：KUINA AI テキスト貼り付けエリア</h3>
+      <p style="font-size: 0.8rem; color: #718096;">PCのKUINA AI出力テキストをそのまま貼り付けて「サイトに反映」を押すと、上の表示エリアが更新されます。</p>
+      <textarea id="aiInput" placeholder="💎【KUINA AI 厳選レース解析】... のテキストをここに全コピペ"></textarea>
+      <button class="admin-btn" onclick="updateAIDisplay()">サイトの予想表示を更新する</button>
+    </div>
+
+    <!-- 6. 法的表記・免責事項 -->
+    <div class="card" style="font-size: 0.8rem; color: #718096;">
+      <h4>【免責事項】</h4>
+      <p>当サロンで提供するAI予想データ、コラム、配信コンテンツは情報提供を目的としており、馬券の的中や利益を保証するものではありません [2]。馬券の購入はご自身の責任と判断で行ってください [2]。</p>
+      <h4>【特定商取引法に基づく表記】</h4>
+      <p>事業者名：[ご自身の氏名または屋号] ｜ 連絡先：[メールアドレス] ｜ 支払方法：クレジットカード（Stripe） [1, 2] ｜ 返金・中途解約：サービスの性質上、決済完了後の返金は応じかねます。次回更新の停止は決済マイページよりいつでも可能です [2]。</p>
+    </div>
+
+  </div>
+
+  <footer>
+    &copy; 2026 KUINA AI Horse Racing Salon. All Rights Reserved.
+  </footer>
+
+  <script>
+    function updateAIDisplay() {
+      const text = document.getElementById('aiInput').value;
+      if (!text.trim()) return alert('AIテキストを入力してください');
+
+      let formatted = text
+        .replace(/💎(.+)/g, '<h3 style="color:#2b6cb0; border-bottom:2px solid #2b6cb0; padding-bottom:5px;">💎 $1</h3>')
+        .replace(/🥇 ◎ (.+)/g, '<p style="color:#e53e3e; font-weight:bold; font-size:1.1rem;">🥇 ◎ $1</p>')
+        .replace(/📊【(.+)】/g, '<h4>📊 $1</h4>')
+        .replace(/(1\.|2\.|3\.|4\.|5\.|6\.) (.+)/g, '<div class="factor-box"><strong>$1 $2</strong></div>')
+        .replace(/🎯【(.+)】/g, '<h4 style="color:#c53030;">🎯 $1</h4>')
+        .replace(/\n/g, '<br>');
+
+      document.getElementById('aiDisplay').innerHTML = formatted;
+      alert('予想データをサイト上に反映しました！');
+    }
+  </script>
 </body>
 </html>
