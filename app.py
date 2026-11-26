@@ -8,129 +8,140 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. Studioデザインを完全再現するカスタムCSS
+# 2. 金枠（Gold Border）＆フォント拡大カスタムCSS
 st.markdown("""
 <style>
-    /* 全体背景とフォント */
+    /* 全体背景と基本フォント */
     .stApp {
         background-color: #0f172a;
         color: #f8fafc;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
     
-    /* メインコンテナの幅調整 */
+    /* コンテナ幅調整 */
     .block-container {
         max-width: 860px;
         padding-top: 2rem;
         padding-bottom: 3rem;
     }
 
-    /* ヘッダーカード */
+    /* 👑 金枠付きヒーローヘッダー */
     .hero-header {
         background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        border: 1px solid #334155;
+        border: 2px solid #eab308;
         border-radius: 16px;
-        padding: 30px 20px;
+        padding: 35px 25px;
         text-align: center;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-        margin-bottom: 25px;
+        box-shadow: 0 0 25px rgba(234, 179, 8, 0.25);
+        margin-bottom: 30px;
     }
     .hero-title {
-        font-size: 2rem;
-        font-weight: 800;
-        background: linear-gradient(90deg, #38bdf8, #818cf8);
+        font-size: 2.4rem;
+        font-weight: 900;
+        background: linear-gradient(90deg, #fef08a, #eab308, #ca8a04);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin-bottom: 8px;
+        margin-bottom: 12px;
+        letter-spacing: 1px;
     }
     .hero-subtitle {
-        font-size: 0.95rem;
-        color: #94a3b8;
+        font-size: 1.1rem;
+        color: #e2e8f0;
+        font-weight: 500;
     }
 
-    /* サロン機能カード */
+    /* 👑 金枠付きサロン機能カード */
     .feature-card {
         background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 20px;
+        border: 1.5px solid #d97706;
+        border-radius: 14px;
+        padding: 22px;
         margin-bottom: 15px;
         height: 100%;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), inset 0 0 10px rgba(234, 179, 8, 0.05);
     }
     .feature-card h4 {
-        color: #38bdf8;
+        color: #fef08a;
         margin-top: 0;
-        font-size: 1.1rem;
+        font-size: 1.25rem;
+        font-weight: 700;
     }
     .feature-card p {
         color: #cbd5e1;
-        font-size: 0.88rem;
+        font-size: 0.95rem;
         margin-bottom: 0;
+        line-height: 1.6;
     }
 
-    /* Stripe決済ボタン */
+    /* 👑 金枠＆グラデーション Stripe決済ボタン */
     .stripe-button {
         display: block;
         width: 100%;
-        padding: 18px;
+        padding: 20px;
         background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        border: 2px solid #fef08a;
         color: #ffffff !important;
         text-align: center;
-        font-weight: 700;
-        font-size: 1.2rem;
+        font-weight: 800;
+        font-size: 1.35rem;
         text-decoration: none;
-        border-radius: 10px;
-        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+        border-radius: 12px;
+        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4), 0 0 15px rgba(254, 240, 138, 0.3);
         transition: all 0.3s ease;
-        margin: 20px 0;
+        margin: 25px 0;
     }
     .stripe-button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.6), 0 0 20px rgba(254, 240, 138, 0.5);
     }
 
-    /* LINEボタン */
+    /* 👑 金枠付き LINEボタン */
     .line-button {
         display: block;
         width: 100%;
-        padding: 14px;
+        padding: 16px;
         background-color: #06C755;
+        border: 1.5px solid #fef08a;
         color: #ffffff !important;
         text-align: center;
-        font-weight: 700;
-        font-size: 1.05rem;
+        font-weight: 800;
+        font-size: 1.15rem;
         text-decoration: none;
         border-radius: 10px;
-        box-shadow: 0 4px 12px rgba(6, 199, 85, 0.3);
-        margin: 10px 0;
+        box-shadow: 0 4px 15px rgba(6, 199, 85, 0.3);
+        margin: 12px 0;
     }
 
-    /* AI解析カード装飾 */
+    /* 👑 金枠付き AI解析カード装飾 */
     .ai-card {
         background: #1e293b;
-        border: 1px solid #3b82f6;
-        border-radius: 14px;
-        padding: 24px;
-        margin-top: 15px;
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        border: 2px solid #eab308;
+        border-radius: 16px;
+        padding: 28px;
+        margin-top: 20px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(234, 179, 8, 0.2);
     }
 
-    /* Streamlit標準パーツのダークモード調整 */
+    /* Streamlit標準パーツのダークモード＆金枠微調整 */
     .stTextInput > div > div > input {
         background-color: #0f172a;
         color: #f8fafc;
-        border: 1px solid #334155;
+        border: 1.5px solid #ca8a04;
+        font-size: 1.05rem;
     }
     .stTextArea > div > div > textarea {
         background-color: #0f172a;
         color: #f8fafc;
-        border: 1px solid #334155;
+        border: 1.5px solid #ca8a04;
+        font-size: 1rem;
     }
     .streamlit-expanderHeader {
         background-color: #1e293b;
-        color: #f8fafc !important;
+        color: #fef08a !important;
+        border: 1px solid #ca8a04 !important;
         border-radius: 8px;
+        font-size: 1.05rem;
+        font-weight: 700;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -144,7 +155,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 4. サロンの3大特徴
-st.subheader("💡 サロンのサービス内容")
+st.markdown("### 💡 サロンのサービス内容")
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -174,7 +185,7 @@ with col3:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # 5. 無料オープンチャット案内（設定いただいたオープンチャットURL）
-st.subheader("🟢 無料LINEオープンチャット「競馬コミュニティ」")
+st.markdown("### 🟢 無料LINEオープンチャット「競馬コミュニティ」")
 st.write("どなたでも無料で参加できます！週末の**無料2〜4レース予想**やサロンの最新情報を配信中。")
 FREE_LINE_OC_LINK = "https://line.me/ti/g2/5sJhEhBeLhBW6ojDFOZ1Ga0wabEz67_jAlYhQg?utm_source=invitation&utm_medium=link_copy&utm_campaign=default"
 st.markdown(f'<a href="{FREE_LINE_OC_LINK}" target="_blank" class="line-button">💬 無料LINEオープンチャット「競馬コミュニティ」に参加する</a>', unsafe_allow_html=True)
@@ -182,8 +193,8 @@ st.markdown(f'<a href="{FREE_LINE_OC_LINK}" target="_blank" class="line-button">
 st.markdown("<br>", unsafe_allow_html=True)
 
 # 6. 有料会員入会案内＆Stripe決済
-st.subheader("💳 有料会員サロン（当サイト内で閲覧完結）")
-st.markdown("### **月額会員プラン：1,980円 / 月（税込）**")
+st.markdown("### 💳 有料会員サロン（当サイト内で閲覧完結）")
+st.markdown("## **月額会員プラン：1,980円 / 月（税込）**")
 st.caption("※Stripe決済完了後の画面に「会員専用パスワード」が表示されます。下部の専用ログインエリアに入力することで、KUINA AI重賞フル解析および限定コラムを全編閲覧いただけます。")
 
 STRIPE_PAYMENT_LINK = "https://buy.stripe.com/00w3cvelM35sahn9Er0sU00"
@@ -200,29 +211,29 @@ with st.expander("❓ クレジットカードをお持ちでない方のお支�
 st.markdown("<br>", unsafe_allow_html=True)
 
 # 7. 無料公開：コラムの目次案内
-st.subheader("📖 会員限定 競身上達コラム（目次案内）")
+st.markdown("### 📖 会員限定 競身上達コラム（目次案内）")
 st.write("有料会員エリアでは、競馬初心者から勝ち組へステップアップするための**完全版コラム**を順次配信・公開しています。")
 
 col_a, col_b, col_c = st.columns(3)
 with col_a:
     st.markdown("""
     <div class="feature-card">
-        <h5 style="color:#38bdf8;">📌 第1回</h5>
-        <p style="font-size:0.82rem;">トリガミを防ぐ「効率的な資金配分」の黄金比（合成オッズ計算・傾斜配分）</p>
+        <h4 style="color:#fef08a;">📌 第1回</h4>
+        <p style="font-size:0.9rem;">トリガミを防ぐ「効率的な資金配分」の黄金比（合成オッズ計算・傾斜配分）</p>
     </div>
     """, unsafe_allow_html=True)
 with col_b:
     st.markdown("""
     <div class="feature-card">
-        <h5 style="color:#38bdf8;">📌 第2回</h5>
-        <p style="font-size:0.82rem;">全国競馬場・コース別の枠順＆バイアス攻略ガイド（馬場傾向の読み解き）</p>
+        <h4 style="color:#fef08a;">📌 第2回</h4>
+        <p style="font-size:0.9rem;">全国競馬場・コース別の枠順＆バイアス攻略ガイド（馬場傾向の読み解き）</p>
     </div>
     """, unsafe_allow_html=True)
 with col_c:
     st.markdown("""
     <div class="feature-card">
-        <h5 style="color:#38bdf8;">📌 第3回</h5>
-        <p style="font-size:0.82rem;">データから導く「激走穴馬」の抽出テクニック（距離短縮・鞍上替わり等）</p>
+        <h4 style="color:#fef08a;">📌 第3回</h4>
+        <p style="font-size:0.9rem;">データから導く「激走穴馬」の抽出テクニック（距離短縮・鞍上替わり等）</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -231,7 +242,7 @@ st.info("💡 全編の本文は、以下の「有料会員専用エリア」に
 st.markdown("<br>", unsafe_allow_html=True)
 
 # 8. 有料会員専用エリア（パスワード認証・サイト完結）
-st.subheader("🔒【有料会員専用エリア】AI解析データ ＆ 限定コラム")
+st.markdown("### 🔒【有料会員専用エリア】AI解析データ ＆ 限定コラム")
 
 if 'member_pass' not in st.session_state:
     st.session_state.member_pass = "kuina2026"
@@ -293,13 +304,13 @@ if user_input_pass == st.session_state.member_pass:
     st.success("🔓 会員認証成功！限定解析データおよび会員限定コラムを表示しています。")
     
     st.markdown('<div class="ai-card">', unsafe_allow_html=True)
-    st.markdown("### 🤖 KUINA AI 重賞フル解析")
+    st.markdown("<h3 style='font-size:1.6rem; color:#fef08a;'>🤖 KUINA AI 重賞フル解析</h3>", unsafe_allow_html=True)
     st.markdown(st.session_state.ai_text)
     st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    st.markdown("### 📚 会員限定 競身上達コラム（全編）")
+    st.markdown("<h3 style='font-size:1.6rem; color:#fef08a;'>📚 会員限定 競身上達コラム（全編）</h3>", unsafe_allow_html=True)
     
     with st.expander("📖 【第1回】トリガミを防ぐ「効率的な資金配分」の黄金比", expanded=True):
         st.markdown("""
