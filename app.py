@@ -149,7 +149,7 @@ st.markdown("""
 # 3. メインヘッダー
 st.markdown("""
 <div class="hero-header">
-    <div class="hero-title">🤖 KUINA AI 競馬オンラインサロン</div>
+    <div class="hero-title">🤖 MAITO AI 競馬オンラインサロン</div>
     <div class="hero-subtitle">PC管理AIによる高精度データ解析 × 勝ち残るための初心者攻略コラム</div>
 </div>
 """, unsafe_allow_html=True)
