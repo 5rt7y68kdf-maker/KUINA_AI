@@ -1,8 +1,10 @@
 import streamlit as st
+import pandas as pd
+import os
 
 # 1. ページ基本設定
 st.set_page_config(
-    page_title="MAITO AI 競馬オンラインサロン",
+    page_title="KUINA AI 競馬オンラインサロン",
     page_icon="🤖",
     layout="centered",
     initial_sidebar_state="collapsed"
@@ -129,6 +131,11 @@ st.markdown("""
         border: 1.5px solid #ca8a04;
         font-size: 1.05rem;
     }
+    .stSelectbox > div > div {
+        background-color: #0f172a;
+        color: #f8fafc;
+        border: 1px solid #ca8a04;
+    }
     .stTextArea > div > div > textarea {
         background-color: #0f172a;
         color: #f8fafc;
@@ -149,7 +156,7 @@ st.markdown("""
 # 3. メインヘッダー
 st.markdown("""
 <div class="hero-header">
-    <div class="hero-title">🤖 MAITO AI 競馬オンラインサロン</div>
+    <div class="hero-title">🤖 KUINA AI 競馬オンラインサロン</div>
     <div class="hero-subtitle">PC管理AIによる高精度データ解析 × 勝ち残るための初心者攻略コラム</div>
 </div>
 """, unsafe_allow_html=True)
@@ -178,7 +185,7 @@ with col3:
     st.markdown("""
     <div class="feature-card">
         <h4>📚 有料会員限定コラム</h4>
-        <p>初心者向けのコラム（資金配分術・コース攻略・穴馬抽出法）を会員エリアにて全編配信。</p>
+        <p>初心者向けの必勝コラム（資金配分術・コース攻略・穴馬抽出法）を会員エリアにて全編配信。</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -210,9 +217,9 @@ with st.expander("❓ クレジットカードをお持ちでない方のお支�
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 7. 無料公開：コラムの目次案内
-st.markdown("### 📖 会員限定 競馬上達コラム（目次案内）")
-st.write("有料会員エリアでは、競馬初心者から勝ち組へステップアップするための**完全版コラム**を順次配信・公開しています。")
+# 7. 無料公開：コラムの目次案内（全5回対応）
+st.markdown("### 📖 会員限定 競身上達コラム（目次一覧）")
+st.write("有料会員エリアでは、競馬初心者から勝ち組へステップアップするための**全5回・完全版コラム**を掲載・更新しています。")
 
 col_a, col_b, col_c = st.columns(3)
 with col_a:
@@ -237,11 +244,88 @@ with col_c:
     </div>
     """, unsafe_allow_html=True)
 
-st.info("💡 全編の本文は、以下の「有料会員専用エリア」にてご覧いただけます。")
+col_d, col_e, col_f = st.columns(3)
+with col_d:
+    st.markdown("""
+    <div class="feature-card">
+        <h4 style="color:#fef08a;">📌 第4回</h4>
+        <p style="font-size:0.9rem;">パドック・気配で見抜く「危険な人気馬」の見分け方（馬体重・気性・指数見切り）</p>
+    </div>
+    """, unsafe_allow_html=True)
+with col_e:
+    st.markdown("""
+    <div class="feature-card">
+        <h4 style="color:#fef08a;">📌 第5回</h4>
+        <p style="font-size:0.9rem;">騎手×コース相性データから狙う勝負レース選定法（コースマスター騎手狙い）</p>
+    </div>
+    """, unsafe_allow_html=True)
+with col_f:
+    st.markdown("""
+    <div class="feature-card">
+        <h4 style="color:#fef08a;">🎁 次回予告</h4>
+        <p style="font-size:0.9rem;">【第6回】重賞レース専用：AI指数を活用した高回収率3連複フォーメーション構築術</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.info("💡 各コラムの全編本文は、以下の「有料会員専用エリア」にてご覧いただけます。")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 8. 有料会員専用エリア（パスワード認証・サイト完結）
+# 8. 🏇 コース別データ＆騎手相性ガイド（検索・自動読み込み）
+st.markdown("### 🏇 全国コース別攻略 ＆ 騎手相性データ分析")
+st.write("会場・馬場・距離を選択すると、リポジトリにアップロードされたCSVから**該当コースの「得意騎手データ」**を自動検出して表示します。")
+
+col_v, col_t, col_d_sel = st.columns(3)
+with col_v:
+    venue_sel = st.selectbox("競馬場", ["東京", "中山", "阪神", "京都", "札幌", "函館", "福島", "新潟", "中京", "小倉"])
+with col_t:
+    track_sel = st.selectbox("馬場", ["ダート", "芝"])
+with col_d_sel:
+    dist_sel = st.selectbox("距離区分", ["～1300", "1400～1600", "1700～2000", "2100～2400", "2500～"])
+
+# CSVファイルの動的検索処理
+csv_filename = f"{venue_sel}{track_sel}{dist_sel}騎手.csv"
+possible_csv_paths = [
+    f"/workspace/knowledge/{csv_filename}",
+    f"./{csv_filename}",
+    csv_filename
+]
+
+jockey_df = None
+for p in possible_csv_paths:
+    if os.path.exists(p):
+        try:
+            jockey_df = pd.read_csv(p, encoding='cp932')
+        except:
+            jockey_df = pd.read_csv(p, encoding='utf-8')
+        break
+
+if jockey_df is not None:
+    st.success(f"📊 【データ連携完了】{venue_sel}{track_sel}{dist_sel}m の騎手成績データを抽出しました！")
+    
+    try:
+        df_display = jockey_df.copy()
+        df_display['複勝率_num'] = df_display['複勝率'].astype(str).str.rstrip('%').apply(pd.to_numeric, errors='coerce')
+        df_display['勝率_num'] = df_display['勝率'].astype(str).str.rstrip('%').apply(pd.to_numeric, errors='coerce')
+        df_display['騎乗数'] = df_display['着別度数'].astype(str).str.split('/').str[1].str.strip().apply(pd.to_numeric, errors='coerce').fillna(0)
+        
+        # 騎乗数10回以上のTOP5騎手
+        top5_df = df_display[df_display['騎乗数'] >= 10].sort_values(by='複勝率_num', ascending=False).head(5)
+        
+        st.markdown(f"#### 🏆 {venue_sel}{track_sel}{dist_sel}m 複勝率TOP5騎手ランキング")
+        
+        cols_to_show = ['順位', '騎手', '着別度数', '勝率', '連対率', '複勝率', '単勝回収値', '複勝回収値']
+        existing_cols = [c for c in cols_to_show if c in top5_df.columns]
+        st.dataframe(top5_df[existing_cols], use_container_width=True, hide_index=True)
+        
+    except Exception as e:
+        st.dataframe(jockey_df.head(10), use_container_width=True)
+else:
+    st.info(f"💡 『{csv_filename}』のCSVデータは準備中です。GitHubへファイルをアップロードすると自動反映されます。")
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# 9. 有料会員専用エリア（パスワード認証・サイト完結）
 st.markdown("### 🔒【有料会員専用エリア】AI解析データ ＆ 限定コラム")
 
 if 'member_pass' not in st.session_state:
@@ -310,7 +394,7 @@ if user_input_pass == st.session_state.member_pass:
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    st.markdown("<h3 style='font-size:1.6rem; color:#fef08a;'>📚 会員限定 競身上達コラム（全編）</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='font-size:1.6rem; color:#fef08a;'>📚 会員限定 競身上達コラム（全5編・完全版）</h3>", unsafe_allow_html=True)
     
     with st.expander("📖 【第1回】トリガミを防ぐ「効率的な資金配分」の黄金比", expanded=True):
         st.markdown("""
@@ -339,12 +423,30 @@ if user_input_pass == st.session_state.member_pass:
         * **コース得意騎手への乗り替わり**: 勝率・複勝率が極端に高い騎手への手戻り。
         """)
 
+    with st.expander("📖 【第4回】パドック・気配で見抜く「危険な人気馬」の見分け方"):
+        st.markdown("""
+        人気が集まりながらも飛ばしやすい過剰人気馬を排除し、回収率を高めるテクニックです。
+        
+        * **馬体重の極端な増減**: ＋10kg以上の太め残りや、輸送減りによる激減（-10kg以上）は能力を発揮しにくい危険信号。
+        * **パドックでの踏み込みと発汗**: チャカチャカして入れ込んでいる馬や、首を極端に振って集中を欠く人気馬は消し判断。
+        * **AIデータ数値との剥離**: 単勝1〜2番人気でも、KUINA AIの6ファクター数値が著しく低い馬は期待値不足としてカット。
+        """)
+
+    with st.expander("📖 【第5回】騎手×コース相性データから狙う勝負レース選定法"):
+        st.markdown("""
+        騎手（鞍上）のコース得意・不得意を数値化し、軸馬の信頼度を高めるロジックです。
+        
+        * **コースマスター騎手の狙い撃ち**: 当コースでの複勝率50%超・単勝率20%超の騎手（例：モレイラ騎手、川田騎手等）が上位人気の馬に乗った際の軸順位繰り上げ。
+        * **トップジョッキーへの手戻り乗り替わり**: 前走不調だった馬が、当コース好相性のトップ騎手に乗り替わったタイミングの急激な一変。
+        * **展開・仕掛け処の精度**: 直線が短いコース（中山・小倉等）で早期仕掛けが得意な騎手と、先行力のある馬の組み合わせを重視。
+        """)
+
 else:
     st.info("🔒 会員用パスワードを入力すると、ここに「KUINA AI 重賞フル解析データ」および「限定コラム（全編）」が表示されます。")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 9. 運営者専用エリア
+# 10. 運営者専用エリア
 with st.expander("⚙️ 運営者専用：KUINA AI テキスト更新・パスワード設定"):
     st.write("PCで生成されたKUINA AIの解析テキストの更新や、会員用パスワードの設定ができます。")
     new_pass = st.text_input("会員用パスワードの設定", value=st.session_state.member_pass)
@@ -358,7 +460,7 @@ with st.expander("⚙️ 運営者専用：KUINA AI テキスト更新・パス�
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 10. 免責事項・特商法表記
+# 11. 免責事項・特商法表記
 with st.expander("⚖️ 免責事項・特定商取引法に基づく表記"):
     st.markdown("""
     **【免責事項】**  
@@ -371,6 +473,6 @@ with st.expander("⚖️ 免責事項・特定商取引法に基づく表記"):
     - **連絡先メールアドレス**: [お問い合わせ用メールアドレス]  
     - **販売価格**: 月額 1,980円（税込）  
     - **お支払い方法**: クレジットカード決済（Stripe / Apple Pay / Google Pay / デビットカード / プリペイドカード）  
-    - **役務の提供時期**: Stripeでの決済完了後、即時（会員パスワードの発行による限定ページの閲覧権限）  
+    - **役務の提供時期**: Stripeでの決済完了後, 即時（会員パスワードの発行による限定ページの閲覧権限）  
     - **解約・返金について**: クレジットカード決済のマイページよりいつでも次回更新の停止（解約）が可能です。サービスの性質上、決済完了後の返金・日割り計算には応じかねます。
     """)
