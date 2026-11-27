@@ -178,7 +178,7 @@ with col3:
     st.markdown("""
     <div class="feature-card">
         <h4>📚 有料会員限定コラム</h4>
-        <p>初心者向けの必勝コラム（資金配分術・コース攻略・穴馬抽出法）を会員エリアにて全編配信。</p>
+        <p>初心者向けのコラム（資金配分術・コース攻略・穴馬抽出法）を会員エリアにて全編配信。</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -211,7 +211,7 @@ with st.expander("❓ クレジットカードをお持ちでない方のお支�
 st.markdown("<br>", unsafe_allow_html=True)
 
 # 7. 無料公開：コラムの目次案内
-st.markdown("### 📖 会員限定 競身上達コラム（目次案内）")
+st.markdown("### 📖 会員限定 競馬上達コラム（目次案内）")
 st.write("有料会員エリアでは、競馬初心者から勝ち組へステップアップするための**完全版コラム**を順次配信・公開しています。")
 
 col_a, col_b, col_c = st.columns(3)
